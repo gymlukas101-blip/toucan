@@ -21,10 +21,13 @@ from playwright.sync_api import Error, sync_playwright
 from tools.browser.attach import attach
 from tools.browser.driver import Driver, Outcome, RunLog, public_url
 from tools.browser.launch import PORT, BrowserUnavailable, launch, wait_ready
+from tools.browser.observation import TRANSCRIPT_LINES, write_observation
 from tools.browser.player import LessonChanged, PlayerEnded, PlayerWatch, player_identity, target_id, wait_for_player
 
 
 HERE = Path(__file__).resolve().parent
+DECISION_SECONDS = 45
+MEDIA_POLL_SECONDS = 45
 ACTIONS = {"click", "play", "mute", "type", "press", "scroll"}
 BLOCKED = re.compile(r"\b(exit course|start over|restart course|retake again)\b", re.I)
 SAFE_KEYS = {"Enter", "Space", "Tab", "Shift+Tab", "ArrowDown", "ArrowUp", "ArrowLeft",
@@ -51,17 +54,26 @@ def read_transcript(path: Path) -> str:
     if not path.exists():
         return ""
     with path.open("rb") as stream:
-        stream.seek(0, 2)
-        stream.seek(max(0, stream.tell() - 65536))
-        return stream.read().decode("utf-8-sig", errors="replace")
+        position = stream.seek(0, 2)
+        chunks = []
+        newlines = 0
+        while position and newlines <= TRANSCRIPT_LINES:
+            size = min(position, 8192)
+            position -= size
+            stream.seek(position)
+            chunk = stream.read(size)
+            chunks.append(chunk)
+            newlines += chunk.count(b"\n")
+        lines = b"".join(reversed(chunks)).splitlines()[-TRANSCRIPT_LINES:]
+        return b"\n".join(lines).decode("utf-8-sig", errors="replace")
 
 
 def decide(task, capture: Path, frames, transcript, *, domain_attempt=False, lessons=None) -> dict:
+    deadline = time.monotonic() + DECISION_SECONDS
     executable = shutil.which("codex")
     if not executable:
         raise RuntimeError("codex exec was not found on PATH.")
-    evidence = {"type": "ExternalMessage", "source": "browser", "frames": frames, "transcript": transcript}
-    (capture / "observation.json").write_text(json.dumps(evidence, ensure_ascii=False), encoding="utf-8")
+    transcript = write_observation(capture, frames, transcript)
     output = capture / "decision.json"
     output.unlink(missing_ok=True)
     menu = [{k: step.get(k, "") for k in ("action", "target", "text")} for step in task["actions"]]
@@ -87,16 +99,24 @@ def decide(task, capture: Path, frames, transcript, *, domain_attempt=False, les
             "-c", "mcp_servers.toucan_observation.required=true",
             "-c", 'mcp_servers.toucan_observation.default_tools_approval_mode="writes"',
             "--json", "--output-schema", str(HERE / "decision.schema.json"), "-o", str(output), "-"]
-    result = subprocess.run(args, cwd=capture, input=prompt, text=True, encoding="utf-8",
-                            stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=120)
     observed = False
-    for line in result.stdout.splitlines():
-        event = json.loads(line)
-        item = event.get("item", {})
-        if (event.get("type") == "item.completed" and item.get("type") == "mcp_tool_call" and
-                item.get("server") == "toucan_observation" and item.get("tool") == "read_observation" and
-                item.get("status") == "completed" and not item.get("error")):
-            observed = True
+    # A child inheriting a pipe can delay Windows timeout cleanup. Keep the
+    # event stream in a file so the runner can return as soon as Codex is killed.
+    with tempfile.TemporaryFile(mode="w+", encoding="utf-8") as events:
+        remaining = deadline - time.monotonic()
+        if remaining <= 0:
+            raise subprocess.TimeoutExpired("codex exec", DECISION_SECONDS)
+        result = subprocess.run(args, cwd=capture, input=prompt, text=True, encoding="utf-8",
+                                stdout=events, stderr=subprocess.DEVNULL, timeout=remaining)
+        events.seek(0)
+        for line in events:
+            event = json.loads(line)
+            item = event.get("item", {})
+            if (event.get("type") == "item.completed" and item.get("type") == "mcp_tool_call" and
+                    item.get("server") == "toucan_observation" and item.get("tool") == "read_observation" and
+                    item.get("status") == "completed" and not item.get("error")):
+                observed = True
+                break
     if result.returncode or not output.is_file() or not observed:
         raise RuntimeError(f"Codex decision failed or did not read the observation (exit {result.returncode}).")
     decision = json.loads(output.read_text(encoding="utf-8-sig"))
@@ -109,26 +129,60 @@ def decide(task, capture: Path, frames, transcript, *, domain_attempt=False, les
     basis = decision["basis"]
     if basis != "domain" and (not re.fullmatch(r"\d{2,}:[0-5]\d", basis) or f"[{basis}]" not in transcript):
         raise ValueError("The cited timestamp is missing from the transcript.")
+    if time.monotonic() >= deadline:
+        raise subprocess.TimeoutExpired("codex exec", DECISION_SECONDS)
     return decision
 
 
-def verify_after_play(driver, locator, seconds=5):
+def fast_button(frames, steps):
+    """Match the sole observed button to exactly one declared click without selecting an answer."""
+    buttons = []
+    for frame in frames:
+        for control in frame.get("controls", ()):
+            if control.get("is_answer") or control["role"] in {"radio", "checkbox", "textbox", "combobox"}:
+                return None
+            if control["role"] == "button":
+                buttons.append((frame, control))
+    if len(buttons) != 1:
+        return None
+    frame, button = buttons[0]
+    name = button["name"]
+    if not name or button.get("disabled") or BLOCKED.search(name) or re.search(r"\b(?:retake|take again)\b", name, re.I):
+        return None
+    matches = []
+    for step in steps:
+        locator = step.get("locator", step["target"])
+        if isinstance(locator, str):
+            locator = {"name": locator}
+        label = locator.get("name") or locator.get("label") or locator.get("text")
+        if (step["action"] in {"click", "play"} and not step.get("is_answer")
+                and not step.get("prompt") and locator.get("role", "button") == "button" and label == name
+                and locator.get("frame") in (None, frame.get("name"), frame.get("url"))):
+            matches.append(step)
+    return matches[0] if len(matches) == 1 else None
+
+
+def verify_after_play(driver, locator, seconds=5, *, retry=True):
     progress = driver.assert_progress(seconds)
-    if progress.result != "stall":
+    if progress.result != "stall" or not retry:
         return progress
     replay = driver.click(locator)
     return driver.assert_progress(seconds) if replay.ok else replay
 
 
-def play_and_verify(driver, locator, seconds=5):
+def play_and_verify(driver, locator, seconds=5, *, retry=True):
     clicked = driver.click(locator)
-    return verify_after_play(driver, locator, seconds) if clicked.ok else clicked
+    return verify_after_play(driver, locator, seconds, retry=retry) if clicked.ok else clicked
 
 
-def dispatch(driver, action, step):
+def plays_media(action, step):
+    return action == "play" or (action == "click" and step["target"].lower() in {"play", "resume playback"})
+
+
+def dispatch(driver, action, step, *, retry_play=True):
     target = step.get("locator", step["target"])
-    if action == "play" or (action == "click" and step["target"].lower() in {"play", "resume playback"}):
-        return play_and_verify(driver, target)
+    if plays_media(action, step):
+        return play_and_verify(driver, target, retry=retry_play)
     if action == "click":
         return driver.click(target)
     if action == "mute":
@@ -269,6 +323,8 @@ def _run_loop(task, driver, transcript_path, capture, *, course_item=None):
     menu = {(s["action"], s["target"], s.get("text", "")): s for s in task["actions"]}
     origins = {urlsplit(url)[:2] for url in [task["url"], *task.get("allowed_origins", [])]}
     same_frame = None
+    last_click_view = None
+    timeout_fallback = False
     stalls = 0
     missed_captures = 0
     next_capture = 0.0
@@ -289,7 +345,8 @@ def _run_loop(task, driver, transcript_path, capture, *, course_item=None):
         if urlsplit(driver.page.url)[:2] not in origins:
             return Outcome("aborted", detail="The page left the task's declared origins.")
         shot = driver.shot(capture / "viewport.png")
-        next_capture = time.monotonic() + 30
+        captured_at = time.monotonic()
+        next_capture = captured_at + 30
         if not shot.ok:
             missed_captures += 1
             if missed_captures == 3:
@@ -306,11 +363,13 @@ def _run_loop(task, driver, transcript_path, capture, *, course_item=None):
             task = {**task, "actions": steps}
             menu = {(s["action"], s["target"], s.get("text", "")): s for s in steps}
         transcript = read_transcript(transcript_path)
-        frame = hashlib.sha256((capture / "viewport.png").read_bytes() +
-                               json.dumps(observed.value).encode() + transcript.encode()).digest()
-        if frame == same_frame and not domain_attempt:
-            if course_item and course_item.media_advancing(driver):
+        # DOM state identifies the clicked screen even if hover pixels or the transcript change.
+        view = json.dumps(observed.value, sort_keys=True).encode()
+        frame = hashlib.sha256((capture / "viewport.png").read_bytes() + view + transcript.encode()).digest()
+        if frame == same_frame and not domain_attempt and not timeout_fallback:
+            if driver.media_advancing():
                 stalls = 0
+                next_capture = captured_at + MEDIA_POLL_SECONDS
                 continue
             stalls += 1
             driver.log.write("poll", "unchanged page", "stall", 0)
@@ -318,9 +377,25 @@ def _run_loop(task, driver, transcript_path, capture, *, course_item=None):
                 return native_handoff(driver.log, task["native_fallback"])
             continue
         start = time.monotonic()
+        fast = None
+        if view != last_click_view and (course_item is None or len(task["actions"]) == 1):
+            fast = fast_button(observed.value, task["actions"])
+        if fast and not course_item and any(task.get("done_text") and task["done_text"] in f["text"]
+                                            for f in observed.value):
+            fast = None
+        if timeout_fallback:
+            timeout_fallback = False
+            if fast is None:
+                driver.log.write("poll", "no eligible button after decision timeout", "stall", 0, rule_used="L15")
+                stalls += 1
+                continue
         try:
-            decision = decide(task, capture, observed.value, transcript, domain_attempt=domain_attempt,
-                              lessons=driver.log.lessons)
+            if fast is not None:
+                decision = dict(action=fast["action"], target=fast["target"], text=fast.get("text", ""),
+                                basis="domain", rule_used="L15")
+            else:
+                decision = decide(task, capture, observed.value, transcript, domain_attempt=domain_attempt,
+                                  lessons=driver.log.lessons)
             driver.check_player()
             action, target, text = (decision[k] for k in ("action", "target", "text"))
             if action in {"done", "wait", "ambiguous"}:
@@ -328,15 +403,24 @@ def _run_loop(task, driver, transcript_path, capture, *, course_item=None):
                     raise ValueError("Status actions take empty target and text.")
             elif (action, target, text) not in menu:
                 raise ValueError("Decision did not match a declared action.")
-        except (ValueError, OSError, RuntimeError, subprocess.TimeoutExpired) as error:
+        except subprocess.TimeoutExpired:
+            driver.check_player()
+            driver.log.write("decide", "observation", "timeout", (time.monotonic() - start) * 1000,
+                             tier="T1", detail="Model decision reached its time limit.")
+            # Both the screen and its menu may have changed while Codex was deciding.
+            timeout_fallback = True
+            next_capture = captured_at + 10
+            continue
+        except (ValueError, OSError, RuntimeError) as error:
             driver.check_player()
             driver.log.write("decide", "observation", "stall", (time.monotonic() - start) * 1000,
                              tier="T1", detail=str(error))
             stalls += 1
             continue
         driver.basis = decision["basis"]
-        driver.log.write("decide", target or action, "ok", (time.monotonic() - start) * 1000,
-                         tier="T1", basis=driver.basis, rule_used=decision.get("rule_used"))
+        driver.log.write("fast-path" if fast is not None else "decide", target or action, "ok",
+                         (time.monotonic() - start) * 1000, tier="T0" if fast is not None else "T1",
+                         basis=driver.basis, rule_used=decision.get("rule_used"))
         if action == "done":
             if course_item:
                 if proof := course_item.completion_proof(driver, observed.value):
@@ -347,7 +431,7 @@ def _run_loop(task, driver, transcript_path, capture, *, course_item=None):
                     task = {**task, "completion_reminder": True, "goal": task["goal"] +
                             " Canvas still shows this item pending. Continue the unfinished question or quiz."}
                 stalls += 1
-                next_capture = max(time.monotonic(), next_capture - 20)
+                next_capture = captured_at + 10
                 continue
             if any(task["done_text"] in f["text"] for f in observed.value):
                 return Outcome("ok", detail="Completion text observed.")
@@ -357,13 +441,17 @@ def _run_loop(task, driver, transcript_path, capture, *, course_item=None):
             if domain_attempt:
                 return Outcome("ambiguous", detail="The question remains ambiguous after a domain attempt.")
             domain_attempt = True
-            next_capture = max(time.monotonic(), next_capture - 20)
+            next_capture = captured_at + 10
             continue
         attempted_domain = domain_attempt
         domain_attempt = False
         if action == "wait":
             same_frame = frame
-            stalls = 0 if course_item and course_item.media_advancing(driver) else stalls + 1
+            if driver.media_advancing():
+                next_capture = captured_at + MEDIA_POLL_SECONDS
+                stalls = 0
+            else:
+                stalls += 1
             continue
         step = menu[(action, target, text)]
         if course_item and not course_item.at_item(driver.page):
@@ -375,12 +463,14 @@ def _run_loop(task, driver, transcript_path, capture, *, course_item=None):
         if urlsplit(driver.page.url)[:2] not in origins:
             return Outcome("aborted", detail="The page changed origin during the decision.")
         action_started = time.monotonic()
+        if action in {"click", "play"}:
+            last_click_view = view
         quiz_submit = course_item and action == "click" and course_item.is_quiz_submit(step)
         if quiz_submit:
             course_item.record_submit(driver, dispatched=False)
         if step.get("opens_popup"):
             with driver.page.expect_popup(timeout=5000) as opened:
-                result = dispatch(driver, action, step)
+                result = dispatch(driver, action, step, retry_play=fast is None)
             if result.ok:
                 driver.use_popup(opened.value)
                 if course_item:
@@ -391,7 +481,7 @@ def _run_loop(task, driver, transcript_path, capture, *, course_item=None):
                     course_item.remember_popup(driver.page)
                     origins.add(urlsplit(driver.page.url)[:2])
         else:
-            result = dispatch(driver, action, step)
+            result = dispatch(driver, action, step, retry_play=fast is None)
         if quiz_submit and result.ok:
             course_item.record_submit(driver, dispatched=True)
         if step.get("is_answer") and result.ok:
@@ -413,7 +503,7 @@ def _run_loop(task, driver, transcript_path, capture, *, course_item=None):
         after = driver.read()
         if course_item and after.ok:
             course_item.observe_quiz(driver, after.value)
-        next_capture = max(time.monotonic(), next_capture - 20)
+        next_capture = captured_at + (MEDIA_POLL_SECONDS if result.ok and plays_media(action, step) else 10)
     return Outcome("stall", detail="Three consecutive stalls.")
 
 

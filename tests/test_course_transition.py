@@ -7,6 +7,7 @@ from playwright.sync_api import Error, sync_playwright
 from tools.browser.attach import attach
 from tools.browser.driver import Driver, RunLog
 from tools.browser.player import LessonChanged, PlayerEnded, PlayerWatch, player_identity, wait_for_player
+from tools.browser.run import fast_button
 from tools.canvas.runner import CourseItem
 
 
@@ -107,9 +108,13 @@ class CourseTransitionTests(unittest.TestCase):
         self.assertEqual([s["control_text"] for s in self.worker.controls(self.driver)], ["START QUIZ"])
 
     def test_quiz_answer_registers_through_its_associated_label(self):
-        self.page.set_content("""<style>input{pointer-events:none} label{display:block;width:300px}</style>
+        self.page.set_content("""<style>input{pointer-events:none;opacity:0} label{display:block;width:300px}</style>
             <label><input type="radio" name="q"><span>I have completed this module.</span></label>
-            <label><input type="radio" name="q"><span>I have not completed this module.</span></label>""")
+            <label><input type="radio" name="q"><span>I have not completed this module.</span></label>
+            <button>Submit</button>""")
+        frames = self.driver.read().value
+        self.assertEqual([c["role"] for c in frames[0]["controls"]], ["radio", "radio", "button"])
+        self.assertIsNone(fast_button(frames, [dict(action="click", target="Submit")]))
         answer = dict(role="radio", name="I have completed this module.")
         self.assertTrue(self.driver.click(answer).ok)
         self.assertTrue(self.page.get_by_role("radio", name=answer["name"], exact=True).is_checked())

@@ -46,6 +46,11 @@ evidence and retain rules that cover recurring failures.
 
 ## Pacing
 
+- [L15] Click a sole visible, menu-approved non-answer button at T0 when the
+  frame has changed since the last click. Leave answer choices to the decision
+  step. Bound that step to 45 seconds and re-read the page on timeout.
+  *Why:* a 70.891-second decision preceded Module 3's expired session.
+  Decision latency is the likely cause. The session log did not record a cause.
 - [L04] Submit completion modules once. Reserve a retake for graded work. *Why:*
   Module 2 estimated 30–35 minutes, and Canvas awarded full completion credit
   on the first submission.

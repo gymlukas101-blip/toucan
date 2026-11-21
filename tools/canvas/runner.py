@@ -23,6 +23,7 @@ from tools.canvas.completion import SUBMIT, quiz_evidence, quiz_summary
 from tools.canvas.dom import CanvasDOM, ORIGIN
 from tools.canvas.plan import course_order, plan, queue_item, whole_course_row
 from tools.canvas.resolve import normalized
+from tools.collect_lessons import records
 
 
 class ComputerHandoff(Exception):
@@ -40,6 +41,13 @@ def dry_run(dom, request, course, run_dir):
     queue, report = plan(request, dom.courses(), lambda cid: dom.modules(cid, refresh=True), course)
     report["started_at"] = started.isoformat()
     report["finished_at"] = datetime.now(timezone.utc).isoformat()
+    decisions = []
+    if dom.log.path.exists():
+        for event in records(dom.log.path):
+            if event.get("action") == "decide" and report["started_at"] <= event["t"] <= report["finished_at"]:
+                decisions.append(event["ms"])
+    report["model_decisions"] = len(decisions)
+    report["mean_decision_ms"] = sum(decisions) / len(decisions) if decisions else None
     run_dir = Path(run_dir)
     path = run_dir / "queue.json"
     with exclusive(path):
@@ -51,15 +59,18 @@ def dry_run(dom, request, course, run_dir):
                  f"Started {report['started_at']}. Finished {report['finished_at']}.",
                  "Dry run complete. No coursework, questions or quiz score in this run.",
                  f"Read {report['courses_seen']} courses and {report['rows_seen']} module rows from the visible DOM.",
+                 f"Model decisions {len(decisions)}. Mean decision latency "
+                 + (f"{report['mean_decision_ms']:.1f} ms." if decisions else "N/A."),
                  "", "## Planned order", ""]
         lines.extend(f"{i}. {name}" for i, name in enumerate(report["order"], 1))
         if not report["order"]:
-            lines.append("There are no runnable items.")
+            lines.append("All requested items are complete.")
         lines.extend(["", "## Requested items", ""])
         for listing in report["listings"]:
             for row in listing["rows"]:
                 if row["key"] in queue["requested_keys"]:
-                    lines.append(f"- {row['title']} — {row['state']}. Dry run only.")
+                    lines.append(f"- {row['title']} — {row['state']}. {row['label'] or 'No label'} "
+                                 f"(`{row['requirement']}`).")
         if report["locked"]:
             lines.extend(["", "## Locked rows", "", *["- " + s for s in report["locked"]]])
         (run_dir / "report.md").write_text("\n".join(lines) + "\n", encoding="utf-8")
@@ -295,11 +306,6 @@ class CourseItem:
             return parts.scheme in {"http", "https"} and not (
                 parts.hostname == "canvas.wisc.edu" and re.match(r"/courses/\d+(?:/|$)", parts.path))
         return _player_identity(page.url) == self.entry_identity
-
-    def media_advancing(self, driver):
-        playing = any(f.evaluate("() => [...document.querySelectorAll('video,audio')].some(m => !m.paused && !m.ended)")
-                      for f in visible_frames(driver.page))
-        return playing and driver.assert_progress(5).ok
 
     def remember_popup(self, page):
         if urlsplit(page.url).scheme not in {"https", "http"}:

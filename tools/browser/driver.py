@@ -171,14 +171,22 @@ class Driver:
 
     def read(self) -> Outcome:
         def observe():
-            controls = """els => els.filter(e => e.checkVisibility() && e.getClientRects().length
+            controls = """els => {
+                const visible = e => e.checkVisibility({opacityProperty:true, visibilityProperty:true}) && e.getClientRects().length;
+                return els.filter(e => (visible(e) || Array.from(e.labels || []).some(visible))
                 && !e.closest('[inert]') && !e.closest('.quiz__card:not(.quiz__card--active)')).map(e => ({
-                role: e.getAttribute('role') || (e.tagName === 'A' ? 'link' : 'button'),
+                role: e.getAttribute('role') || (e.tagName === 'A' ? 'link' :
+                    e.matches('button,input[type=submit],input[type=button],input[type=image]') ? 'button' : e.type || 'field'),
+                is_answer: e.matches('input:not([type=button]):not([type=image]):not([type=submit]):not([type=reset]):not([type=range]),'
+                    + 'textarea,select,[contenteditable=true],[role=radio],[role=checkbox],[role=textbox],[role=combobox]'),
+                disabled: e.matches(':disabled,[aria-disabled=true]'),
                 name: (e.getAttribute('aria-labelledby') || '').split(/ +/).filter(Boolean)
                         .map(id => document.getElementById(id)?.innerText || '').join(' ').trim()
-                    || e.getAttribute('aria-label') || e.innerText?.trim() || e.value || e.title || ''
-            })).filter(c => c.name)"""
-            selector = "button,a[href],[role=button],[role=link],input[type=submit],input[type=button]"
+                    || e.getAttribute('aria-label') || Array.from(e.labels || []).map(l => l.innerText).join(' ').trim()
+                    || e.innerText?.trim() || e.title || (e.matches('input[type=submit],input[type=button]') ? e.value : '')
+            }))}"""
+            selector = ("button,a[href],[role=button],[role=link],input:not([type=hidden]):not([type=password]),"
+                        "textarea,select,[contenteditable=true],[role=radio],[role=checkbox],[role=textbox],[role=combobox]")
             # Rise pre-renders an inert results card with a failing score before Start Quiz.
             # Only the active card describes the learner's current question or result.
             content = "body => (body.querySelector('.quiz__card--active') || body).innerText"
@@ -443,6 +451,11 @@ class Driver:
             self._click({"role": "button", "name": re.compile(r"^mute\b", re.I)})
             return "player mute control"
         return self._action("mute", "page audio", silence)
+
+    def media_advancing(self):
+        playing = any(f.evaluate("() => [...document.querySelectorAll('video,audio')].some(m => !m.paused && !m.ended)")
+                      for f in visible_frames(self.page))
+        return playing and self.assert_progress(5).ok
 
     def assert_progress(self, seconds: float = 5) -> Outcome:
         def check():

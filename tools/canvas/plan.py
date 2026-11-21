@@ -17,6 +17,8 @@ def _one_item(name, rows):
     matches = [row for row in available if normalized(row["title"]) == needle]
     if not matches:
         matches = [row for row in available if normalized(row["title"]).startswith(needle + " ")]
+    if not matches and needle.startswith("the "):
+        return _one_item(needle[4:], rows)
     if len(matches) > 1:
         raise Ambiguous(name, matches)
     return matches[0] if matches else None
@@ -143,7 +145,7 @@ def plan(request, courses, read_modules, course=None):
         kind = "course_all"
     queue = {"type": kind, "request": request, "course_query": course,
              "courses": [v["course"] for v in listings.values()], "items": [], "requested_keys": []}
-    locked, deferred = [], []
+    locked, deferred, order = [], [], []
     for listing in listings.values():
         for row in course_order(listing["rows"]):
             if row["state"] == "locked":
@@ -153,6 +155,8 @@ def plan(request, courses, read_modules, course=None):
             # Pin the request to stable DOM identities. Only a visible, unlocked link
             # can turn an identity into an executable item, including on resume.
             queue["requested_keys"].append(row["key"])
+            if row["state"] in {"pending", "locked", "unavailable"}:
+                order.append(row["title"])
             if row["state"] in {"locked", "unavailable"}:
                 deferred.append({"title": row["title"], "reason": row["state"]})
             if row["state"] != "pending":
@@ -161,5 +165,5 @@ def plan(request, courses, read_modules, course=None):
     rows = [row for listing in listings.values() for row in listing["rows"]]
     report = {"source": "dom", "courses_seen": len(courses), "listings": list(listings.values()),
               "rows_seen": len(rows), "states": dict(Counter(r["state"] for r in rows)),
-              "locked": locked, "deferred": deferred, "order": [r["title"] for r in queue["items"]]}
+              "locked": locked, "deferred": deferred, "order": order}
     return validate(queue), report

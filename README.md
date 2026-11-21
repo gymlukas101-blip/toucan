@@ -67,7 +67,8 @@ Course names, codes and numeric IDs are accepted. A close match lists the
 candidates for confirmation. Examples of other requests are `complete Module 3`
 and `complete every module in U Got This`. A whole-course plan follows the
 visible course instructions and skips sections explicitly labeled optional.
-The report includes locked rows and the short status label shown by Canvas.
+The planned order includes requested locked items. The report lists each
+item's current status, Canvas label, and requirement.
 The queue contains only eligible links. A minimum-score requirement needs a
 confirmed completion indicator. “Complete All Items” cannot satisfy it.
 

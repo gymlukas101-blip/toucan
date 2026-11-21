@@ -119,6 +119,27 @@ class CanvasQueueTests(unittest.TestCase):
         self.assertEqual([i["key"] for i in queue["items"]], ["42:3", "43:8"])
         self.assertEqual(report["rows_seen"], 7)
 
+    def test_module_four_and_the_post_survey_stay_in_order_through_unlock(self):
+        self.dom.rows[3] = row(4, "Module 4: Campus Resources")
+        title = "Post-Survey: Tell us what you thought of the program"
+        self.dom.rows[4] = row(5, title, state="locked", label="Submit")
+        queue, report = dry_run(self.dom, "complete Module 4 and the Post-Survey", "42", self.folder)
+        self.assertEqual(report["order"], ["Module 4: Campus Resources", title])
+        self.assertEqual((report["model_decisions"], report["mean_decision_ms"]), (0, None))
+        self.assertEqual(report["listings"][0]["rows"][4]["requirement"], "must_submit")
+        self.assertEqual(queue["requested_keys"], ["42:4", "42:5"])
+        self.assertEqual([i["key"] for i in queue["items"]], ["42:4"])
+        def finish(item, player, persist):
+            if item["key"] == "42:4":
+                self.dom.rows[3] = row(4, item["title"], state="complete", label="Scored at least 100.0")
+                self.dom.rows[4] = row(5, title, label="Submit")
+            else:
+                self.dom.rows[4] = row(5, title, state="complete", label="Submitted")
+            return Outcome("ok")
+        completed, deferred = walk_queue(self.path, self.dom, lambda q: {}, finish)
+        self.assertEqual([(i["key"], i["status"]) for i in completed["items"]], [("42:4", "done"), ("42:5", "done")])
+        self.assertEqual(deferred, [])
+
     def test_visible_prerequisite_overrides_reversed_list_and_request(self):
         for instruction in ("Complete Module 4 after Module 3.", "Before Module 4, finish Module 3.",
                             "After Module 3, complete Module 4."):
@@ -132,7 +153,7 @@ class CanvasQueueTests(unittest.TestCase):
         queue, report = dry_run(self.dom, "do Module 3 and Module 4", "U Got This", self.folder)
         self.assertEqual(self.dom.lookups, [("42", True)])
         self.assertEqual(load(self.path), queue)
-        self.assertEqual(len(report["order"]), 1)
+        self.assertEqual(report["order"], ["Module 3: Test", "Module 4: Resources and Help"])
         self.assertEqual(report["deferred"], [{"title": "Module 4: Resources and Help", "reason": "locked"}])
         with self.assertRaises(ValueError):
             dry_run(self.dom, "complete Module 3", "42", self.folder)

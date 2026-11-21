@@ -31,8 +31,9 @@ description: Complete a Canvas assignment that launches an external SCORM or
 Start caption capture as each slide opens. Read from the built-in transcript
 or captions panel when available. Append each new line verbatim to
 transcript.md as `[MM:SS] text`, independently of the screenshot interval.
-Every 30 seconds, take a settled screenshot and compare it with the previous
-frame. Reassess the content only when the frame changes.
+Take a settled screenshot every 45 seconds while the media playhead advances.
+For ordinary waits, check every 30 seconds. Compare each frame with the previous
+one and reassess when it changes.
 - Prompt or checkpoint present -> screenshot, state in one line what it asks,
   choose and tag the answer under AGENTS.md rule 7, verify it registered, resume
 - Frame unchanged for 30 seconds -> check for a pause or stall, resume playback

@@ -36,7 +36,7 @@ The current checkout is `C:\Users\gymlu\OneDrive\Documents\Toucan`.
 run.jsonl, one object per line, append-only:
 
 ```text
-{"t":"<ISO8601>","action":"<verb>","target":"<what>","result":"<ok|miss|stall|ambiguous|aborted|domain|escalate|handoff|item-ended|blocked>","tier":"<T0|T1|T2>","basis":"<MM:SS|domain>","ms":<int>,"driver":"<cdp|computer>"}
+{"t":"<ISO8601>","action":"<verb>","target":"<what>","result":"<ok|miss|stall|timeout|ambiguous|aborted|domain|escalate|handoff|item-ended|blocked>","tier":"<T0|T1|T2>","basis":"<MM:SS|domain>","ms":<int>,"driver":"<cdp|computer>"}
 ```
 
 result carries the event word the digest reads. Use "domain" on any
@@ -103,7 +103,11 @@ Escalate T0 -> T1 -> T2 on: two misses on one control, an unpredicted dialog, a
 caption gap the next question depends on, or a stall. De-escalate after one
 clean step. Never sit in T2 by default.
 
-Poll on a 30 second cadence. Only re-reason when the frame changed.
+Poll every 45 seconds while the media playhead advances. Keep the 30-second
+interval for ordinary waits and recheck after an action. A sole visible
+non-answer button in the allowed menu can run at T0 under L15. Recheck the
+screen after a 45-second decision timeout and log a stall if no such button is
+available. Only re-reason when the frame changes.
 
 Classify before acting. Reply with JSON only for the routing decision:
 

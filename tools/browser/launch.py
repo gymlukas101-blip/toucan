@@ -134,7 +134,8 @@ def apply_running_popup_preference(browser):
     session = browser.new_browser_cdp_session()
     try:
         with browser.contexts[0].expect_page(timeout=10000) as created:
-            session.send("Target.createTarget", {"url": url, "background": True})
+            # Settings defers rendering its radio group in an inactive tab.
+            session.send("Target.createTarget", {"url": url, "newWindow": True, "background": True})
         page = created.value
         try:
             page.wait_for_url(url, timeout=10000)

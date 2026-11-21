@@ -16,6 +16,9 @@
             }
         }
     }
+    const revealPrompt = artworkTargets.size && /\b(?:click(?: on)?|select|open|tab to) each (\w+)(?: and press (?:the )?enter(?: key)?)? to (?:reveal|learn|view|read|see|explore)\b/i
+        .exec(document.body.innerText);
+    const revealName = revealPrompt ? revealPrompt[1][0].toUpperCase() + revealPrompt[1].slice(1).toLowerCase() : '';
     // Moodle's numbered activity index is coursework navigation within this vendor.
     const courseActivity = e => course && e.tagName === 'A' && location.hostname === 'wisc.prevent.zone'
         && e.origin === location.origin && !!e.closest('#course-index,.courseindex,.course-content,.activity,.block_navigation')
@@ -55,7 +58,8 @@
             .map(id => root.getElementById(id)?.textContent).filter(Boolean).join(' ');
         const name = clean(referenced || e.getAttribute('aria-label')
             || [...e.labels || []].map(l => l.innerText).join(' ').trim() || e.innerText || e.title
-            || (e.matches('input[type=submit],input[type=button]') ? e.value : ''));
+            || (e.matches('input[type=submit],input[type=button]') ? e.value : '')
+            || (artworkTargets.has(e) && tag === 'BUTTON' ? revealName : ''));
         if (!name && !['textbox','combobox','slider'].includes(role)) continue;
         const choice = role === 'radio' || role === 'checkbox';
         const info = {index, name, role, disabled, is_answer: choice || e.matches(

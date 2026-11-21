@@ -89,6 +89,22 @@ class PlayerChanges(unittest.TestCase):
         self.assertTrue(self.driver.click(start["locator"]).ok)
         self.assertEqual(self.page.locator("output").inner_text(), "Opened")
 
+    def test_reveal_sections_get_distinct_controls_from_the_visible_prompt(self):
+        self.page.set_content("<p>Click each section to learn more.</p>" + "".join(
+            f'<button id="acc-card{i}" class="acc-shadow-el" style="opacity:0"></button>'
+            f'<div class="slide-object shown cursor-hover" data-model-id="card{i}" '
+            f'onpointerup="this.textContent=\'Revealed {i}\'">...</div>' for i in range(1, 7)))
+        steps = self.worker.controls(self.driver)
+        self.assertEqual(len(steps), 6)
+        self.assertEqual([s["locator"]["position"] for s in steps], list(range(1, 7)))
+        for step in steps:
+            self.assertTrue(self.driver.click(step["locator"]).ok)
+        self.assertEqual(self.page.get_by_text("Revealed", exact=False).count(), 6)
+        self.page.locator("p").evaluate("e=>e.textContent='Tab to each drink and press the enter key to see the details.'")
+        self.assertEqual([s["control_text"] for s in self.worker.controls(self.driver)], ["Drink"] * 6)
+        self.page.locator("p").evaluate("e=>e.textContent='Finished'")
+        self.assertEqual(self.worker.controls(self.driver), [])
+
     def test_select_all_six_applicable_options_then_continue(self):
         for include_distractor in (False, True):
             opts=[f"Useful {i}" for i in range(6)] + (["Distractor"] if include_distractor else [])

@@ -414,6 +414,22 @@ class ParallelBrowser(unittest.TestCase):
                          ["screenshot timed out"])
         self.assertFalse(any(r["action"] == "capture_reload" for r in self.records()))
 
+    def test_timeout_after_discard_retries_only_the_restored_document(self):
+        self.assertTrue(self.driver.goto(self.root + "/counter").ok)
+        self.page.evaluate("Object.defineProperty(document, 'wasDiscarded', {value: true})")
+        capture = self.driver._viewport
+        requests = []
+        def delayed_paint(kind, *, background_recovery=False):
+            requests.append(background_recovery)
+            if len(requests) == 1:
+                return b"", "screenshot timed out"
+            return capture(kind, background_recovery=background_recovery)
+        with patch.object(self.driver, "_viewport", side_effect=delayed_paint):
+            result = self.driver.shot(self.folder / "restored.png")
+        self.assertTrue(result.ok, result)
+        self.assertEqual(requests, [False, True])
+        self.assertEqual(sum(r["action"] == "capture_reload" for r in self.records()), 1)
+
     def test_capture_preserves_course_frame_and_popup(self):
         self.assertTrue(self.driver.goto(self.root + "/embedded-course").ok)
         self.page.frame_locator("iframe").locator("body").wait_for(state="attached")

@@ -518,8 +518,8 @@ class Driver:
                     clip = dict(x=view["pageX"], y=view["pageY"], width=view["clientWidth"],
                                 height=view["clientHeight"], scale=view["scale"])
                     capture = session.send("Page.captureScreenshot", {
-                        "format": kind, "clip": clip, "captureBeyondViewport": True,
-                    }, timeout=5000)
+                        "format": kind, "clip": clip, "fromSurface": True, "captureBeyondViewport": True,
+                    }, timeout=8000)
                     data = base64.b64decode(capture["data"])
                 finally:
                     session.detach()
@@ -615,6 +615,10 @@ class Driver:
                     raise ActionFailure("miss", f"{reason}. Kept the player in place.")
                 hidden = reloaded and self.page.evaluate("document.hidden")
                 data, reason = self._viewport(kind, background_recovery=hidden)
+                if reloaded and reason == "screenshot timed out" and self.page.url == key[1]:
+                    self.log.write("capture_retry", reason, "miss", (time.monotonic() - started) * 1000,
+                                   rule_used="L06", detail="Retrying the restored tab's compositor viewport.")
+                    data, reason = self._viewport(kind, background_recovery=True)
                 if reason:
                     raise ActionFailure("miss", f"{reason} on the recovery capture.")
             path.parent.mkdir(parents=True, exist_ok=True)

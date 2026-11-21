@@ -20,11 +20,24 @@ Updated: 2026-11-20
   on “Module 3: U Gotta Be An Upstander.” The Module 3 player was not started.
   [Canvas grade](screenshots/module-2-20261120-171029/F08-canvas-credit.jpg) ·
   [Module 3](screenshots/module-2-20261120-171029/F14-module-3.jpg)
+- In Toucan's signed-in Chrome profile, Canvas module item `9791076` resolved
+  to assignment `3108979`. The heading was “Module 3: U Gotta Be An Upstander”
+  and the button read “Load Module 3: U Gotta Be An Upstander in a new window”.
+  The identity check issued zero clicks. Assignment `3108978` belongs to Module 2.
+- The Windows proofs covered background clicks, concurrent Notepad input,
+  cross-origin frames, a closed CDP port and recovery after a real window blur.
+  In the 20-second occupancy proof, Chrome received 10/10 clicks while Notepad
+  received 42/42 characters. [Parallel-use tests](tests/test_parallel.py)
+- A hidden fixture tab recovered after one reload of a blank viewport. A
+  black video kept advancing during a failed capture, and the embedded course
+  fixture retained its document. The Chrome discard flag was simulated on
+  a disposable tab. All 12 tests passed.
 
 ## Built
 
-- Matching `~/.codex/AGENTS.md` and [project AGENTS.md](AGENTS.md) contain
-  rules 1–10 and the model-routing policy.
+- The [project rules](AGENTS.md) specify the CDP browser driver, schoolwork
+  rules 1–10 and model routing. The live global rules have a separate
+  [versioned backup](AGENTS.global.md).
 - The [Canvas skill](.agents/skills/canvas-scorm-module/SKILL.md) is installed at
   `~/.agents/skills/canvas-scorm-module/SKILL.md`.
 - Module 2 [notes](notes.md), [transcript](transcript.md), [action log](run.log),
@@ -34,12 +47,14 @@ Updated: 2026-11-20
 ## Decisions
 
 - Renamed TaskRunner to Toucan 2026-11-20. Repo, folder, and agent name. Files in report.md, transcript.md and screenshots/ keep the old name — they are historical.
-- Run Computer Use on the local desktop.
+- Use Playwright over CDP for HTTP(S) tasks. The runner verifies the Chrome
+  process that owns the loopback port and its dedicated profile. The owner's
+  main Chrome is untouched. Native Computer Use takes the foreground only
+  for a named non-browser target.
 - Coursework submissions run autonomously. Reserve an approval step for the
   future `exam` class.
-- Monkey will control Chrome. When invoked by Monkey, Codex will supply a
-  tier-0 decision by default and receive no desktop access.
-- The planned bridge is a localhost `POST /decide` daemon.
+- The [runner](tools/browser/run.py) uses `codex exec --output-schema` for
+  decisions and sends controls to one tab. It records which driver acted.
 - A completion module ends after the first submission. For a graded quiz or
   test below full marks, use at most one offered retake.
 
@@ -58,6 +73,7 @@ Updated: 2026-11-20
 | date | module | wall | active | turns | T0/T1/T2 | domain | stalls | retakes | score |
 |---|---|---|---|---|---|---|---|---|---|
 | 2026-11-20 | 2 | ~1h50m | 7m48s | - | mostly T2 | 7 | 1 | 0 | 100% |
+| 2026-11-20 | 3 assignment identity read | ~4s | - | - | 3/1/0 | 0 | 0 | 0 | - |
 
 Populate from run.jsonl after each run. Use a dash for unavailable measurements.
 Module 2 predates run.jsonl. Its tier mix and single stall come from the
@@ -73,6 +89,7 @@ answers, first-pass score and zero retakes.
 
 ## Next
 
-1. Build the localhost `POST /decide` daemon and test it against a throwaway script.
-2. Wire it into Monkey’s `coursework` class.
-3. Consider an app-server upgrade if measured latency warrants it.
+Before starting Module 3, move the chat “Inspect open desktop windows” to
+Toucan, remove the old TaskBot entry, then add or select the project at
+`C:\Users\gymlu\OneDrive\Documents\Toucan`. Start a fresh chat in that
+project and verify it answers `Quote rule 1 from AGENTS.md.`

@@ -4,13 +4,26 @@ These schoolwork rules apply to every session under the Toucan project root.
 The current checkout is `C:\Users\gymlu\OneDrive\Documents\Toucan`.
 
 ## Environment
-- Windows 11, single display. Computer Use is foreground-only: the pointer and
-  keyboard belong to the agent while a task runs. Assume the user is not at
-  the machine.
-- Browser: Chrome, driven through the browser extension. Firefox is the
-  fallback if Chrome playback stalls.
+- Windows 11, single display. The owner may keep working during browser runs.
 - Before any run: `powercfg /change monitor-timeout-ac 0` and
   `powercfg /change standby-timeout-ac 0`. After: restore to 15 and 30.
+
+## Browser
+
+- Use the Playwright CDP driver in `tools/browser/` for every HTTP(S) target.
+  T0 and T1 browser actions both use CDP. Send input to the task's tab and
+  read the target frame, including cross-origin frames.
+- Connect to Toucan's Chrome profile at `127.0.0.1:9222`. The owner's main
+  Chrome profile stays independent. Keep the Toucan window open behind other
+  windows. Never minimize it.
+- Computer Use requires the foreground and is only for non-browser surfaces.
+  After two CDP stalls, a task with a named native fallback may hand off to
+  that surface. Log the foreground warning and the driver change. Keep browser
+  targets on CDP. The owner handles NetID and Duo in the Toucan window.
+- A blank capture or a Chrome discard signal triggers one recovery reload on
+  an ordinary page. Preserve loaded course players under rule 3. Report a
+  missing capture separately from a playback stall. Check playback through
+  the media playhead in its frame.
 
 ## Layout
 - notes.md       rolling notes, appended as you go
@@ -23,17 +36,18 @@ The current checkout is `C:\Users\gymlu\OneDrive\Documents\Toucan`.
 run.jsonl, one object per line, append-only:
 
 ```text
-{"t":"<ISO8601>","action":"<verb>","target":"<what>","result":"<ok|miss|stall|ambiguous|aborted|domain|escalate>","tier":"<T0|T1|T2>","basis":"<MM:SS|domain>","ms":<int>}
+{"t":"<ISO8601>","action":"<verb>","target":"<what>","result":"<ok|miss|stall|ambiguous|aborted|domain|escalate>","tier":"<T0|T1|T2>","basis":"<MM:SS|domain>","ms":<int>,"driver":"<cdp|computer>"}
 ```
 
 result carries the event word the digest reads. Use "domain" on any
 domain-sourced answer. Record each action's elapsed milliseconds in ms.
 For a retake, use the action "retake" and record its result.
+Record `cdp` for browser actions and `computer` for native handoffs. Older logs may omit `driver`.
 
 Example record
 
 ```json
-{"t":"2000-01-01T00:00:00Z","action":"answer","target":"example checkpoint","result":"domain","tier":"T1","basis":"domain","ms":250}
+{"t":"2000-01-01T00:00:00Z","action":"answer","target":"example checkpoint","result":"domain","tier":"T1","basis":"domain","ms":250,"driver":"cdp"}
 ```
 
 ## Rules
@@ -71,9 +85,10 @@ unresolved.
 Default to the cheapest tier that can succeed. Escalate only on evidence.
 
 - T0 mechanical: play, pause, continue, next, submit, confirm, scroll, or
-  clicking an already-identified target. GPT-6 Luna, Low, Fast.
+  clicking an already-identified target. GPT-6 Luna, Low, Fast. Use CDP on browser targets.
 - T1 visual or judgment: read a caption, match an option to transcript.md,
   locate an unnamed control, recover from one miss. GPT-6.1 Terra, Medium, Fast.
+  Read the viewport and frames through CDP.
 - T2 hard or high-stakes: ambiguous question, conflicting options, a graded item
   worth real points, recovery after two failures. Astra or Sol, high.
 

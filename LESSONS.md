@@ -26,3 +26,9 @@ retire it in the same change and say why.
 - Verify the Windows profile path before writing. *Why:* the GitHub account
   is gymlukas101-blip and the Windows profile is gymlu. Checking the proposed
   gymluka path caught the mismatch before the rules were written.
+- Open the Canvas module-item link when only the item ID is known. Compare the
+  resolved assignment heading and launch label with the requested module.
+  The first signed-in read reached assignment 3108978 and showed Module 2.
+- Diagnose screenshot timeouts and blank viewports separately from playback.
+  An unused background tab timed out during the Module 2 dry run. A video
+  stall requires an observation of the playhead in the player frame.

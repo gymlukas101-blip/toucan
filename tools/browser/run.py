@@ -190,7 +190,7 @@ def hard_block(driver):
     return ""
 
 
-def run_loop(task, driver, transcript_path, capture):
+def run_loop(task, driver, transcript_path, capture, *, course_item=None):
     menu = {(s["action"], s["target"], s.get("text", "")): s for s in task["actions"]}
     origins = {urlsplit(url)[:2] for url in [task["url"], *task.get("allowed_origins", [])]}
     same_frame = None
@@ -200,6 +200,8 @@ def run_loop(task, driver, transcript_path, capture):
     domain_attempt = False
     while stalls < 3:
         time.sleep(max(0, next_capture - time.monotonic()))
+        if course_item and not course_item.at_item(driver.page):
+            return Outcome("ok", detail="The item page changed. Verify completion on the Modules page.")
         if reason := hard_block(driver):
             return Outcome("aborted", detail=reason)
         if urlsplit(driver.page.url)[:2] not in origins:
@@ -216,10 +218,17 @@ def run_loop(task, driver, transcript_path, capture):
         if not observed.ok:
             stalls += 1
             continue
+        if course_item:
+            steps = course_item.controls(driver)
+            task = {**task, "actions": steps}
+            menu = {(s["action"], s["target"], s.get("text", "")): s for s in steps}
         transcript = read_transcript(transcript_path)
         frame = hashlib.sha256((capture / "viewport.png").read_bytes() +
                                json.dumps(observed.value).encode() + transcript.encode()).digest()
         if frame == same_frame and not domain_attempt:
+            if course_item and course_item.media_advancing(driver):
+                stalls = 0
+                continue
             stalls += 1
             driver.log.write("poll", "unchanged page", "stall", 0)
             if stalls == 2 and task.get("native_fallback"):
@@ -243,6 +252,8 @@ def run_loop(task, driver, transcript_path, capture):
         driver.log.write("decide", target or action, "ok", (time.monotonic() - start) * 1000,
                          tier="T1", basis=driver.basis)
         if action == "done":
+            if course_item:
+                return Outcome("ok", detail="Worker finished. Canvas verification is pending.")
             if any(task["done_text"] in f["text"] for f in observed.value):
                 return Outcome("ok", detail="Completion text observed.")
             stalls += 1
@@ -257,9 +268,11 @@ def run_loop(task, driver, transcript_path, capture):
         domain_attempt = False
         if action == "wait":
             same_frame = frame
-            stalls += 1
+            stalls = 0 if course_item and course_item.media_advancing(driver) else stalls + 1
             continue
         step = menu[(action, target, text)]
+        if course_item and not course_item.at_item(driver.page):
+            return Outcome("ok", detail="The item changed during the decision. Verify it on Canvas.")
         if reason := hard_block(driver):
             return Outcome("aborted", detail=reason)
         if urlsplit(driver.page.url)[:2] not in origins:
@@ -270,7 +283,12 @@ def run_loop(task, driver, transcript_path, capture):
                 result = dispatch(driver, action, step)
             if result.ok:
                 driver.use_popup(opened.value)
+                if course_item:
+                    driver.page.wait_for_url(re.compile(r"^https?://"), timeout=15000)
                 driver.page.wait_for_load_state("domcontentloaded", timeout=15000)
+                if course_item:
+                    course_item.remember_popup(driver.page)
+                    origins.add(urlsplit(driver.page.url)[:2])
         else:
             result = dispatch(driver, action, step)
         if step.get("is_answer") and result.ok:
@@ -355,14 +373,22 @@ if __name__ == "__main__":
     mode = parser.add_mutually_exclusive_group(required=True)
     mode.add_argument("--task", type=Path)
     mode.add_argument("--preview", metavar="URL", help="read a page without activating any controls")
-    parser.add_argument("--run-dir", type=Path, default=Path.cwd())
+    mode.add_argument("--dry-run", metavar="REQUEST", help="read the course DOM and save a queue without opening items")
+    mode.add_argument("--queue", type=Path, help="execute a saved queue, verifying each item on the Modules page")
+    parser.add_argument("--course", help="course name, code or ID for a dry run")
+    parser.add_argument("--run-dir", type=Path)
     args = parser.parse_args()
     try:
-        if args.preview:
+        if args.dry_run or args.queue:
+            from tools.canvas.runner import canvas_command
+            sys.exit(canvas_command(args))
+        elif args.preview:
+            args.run_dir = args.run_dir or Path.cwd()
             print(json.dumps(preview(args.preview, args.run_dir), ensure_ascii=True, indent=2))
         else:
+            args.run_dir = args.run_dir or Path.cwd()
             outcome = run(json.loads(args.task.read_text(encoding="utf-8-sig")), args.run_dir)
             print(json.dumps(outcome.__dict__, ensure_ascii=True))
             sys.exit(0 if outcome.ok else 2)
-    except (OSError, ValueError, KeyError, RuntimeError) as error:
+    except (Error, OSError, ValueError, KeyError, RuntimeError, subprocess.CalledProcessError) as error:
         parser.exit(1, f"{error}\n")

@@ -74,6 +74,7 @@ Updated: 2026-11-20
 |---|---|---|---|---|---|---|---|---|---|
 | 2026-11-20 | 2 | ~1h50m | 7m48s | - | mostly T2 | 7 | 1 | 0 | 100% |
 | 2026-11-20 | 3 assignment identity read | ~4s | - | - | 3/1/0 | 0 | 0 | 0 | - |
+| 2026-11-20 | 3–4 DOM queue preview | 4.65s | - | - | 4/2/0 | 0 | 0 | 0 | - |
 
 Populate from run.jsonl after each run. Use a dash for unavailable measurements.
 Module 2 predates run.jsonl. Its tier mix and single stall come from the
@@ -83,7 +84,10 @@ answers, first-pass score and zero retakes.
 
 ## Open
 
-- Module 3 is ready to start.
+- The DOM-only preview resolved “U Got This” to course 532511. Module 3 has
+  an active link and a 100-point minimum. Module 4 and the Post-Survey have
+  grey titles and no item links. The requested queue can admit Module 4
+  when its own link becomes available after a completion check.
 - Toucan lives at `C:\Users\gymlu\OneDrive\Documents\Toucan`. A later move
   to `C:\Users\gymlu\school` remains optional.
 

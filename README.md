@@ -51,6 +51,35 @@ the capture in place. Signed launches and course players stay in place.
 A native fallback must name a non-browser app. Its handoff warns that
 Computer Use needs the foreground.
 
+## Course queues
+
+A dry run reads course cards, the Courses list, or an open Courses navigation
+panel in Toucan Chrome. It reads each selected course's visible Modules list
+in page order and saves the DOM snapshots, element counts, dry-run report and
+`queue.json` in the run directory. Select a new directory for each plan.
+
+~~~powershell
+$runDirectory = "$runRoot\module-plan-001"
+& $toucanPython -m tools.browser.run --dry-run "do Module 3 and Module 4" --course "U Got This" --run-dir $runDirectory
+~~~
+
+Course names, codes and numeric IDs are accepted. A close match lists the
+candidates for confirmation. Examples of other requests are `complete Module 3`
+and `complete every module in U Got This`. A whole-course plan follows the
+visible course instructions and skips sections explicitly labeled optional.
+The report includes locked rows and the short status label shown by Canvas.
+The queue contains only eligible links. A minimum-score requirement needs a
+confirmed completion indicator. “Complete All Items” cannot satisfy it.
+
+After the owner authorizes execution, `--queue` walks the saved plan.
+It saves the running item before dispatch, reuses a matching live player on
+resume, and checks the Modules page before marking an item done. A requested
+locked row becomes runnable only when Canvas publishes its active link.
+
+~~~powershell
+& $toucanPython -m tools.browser.run --queue "$runDirectory\queue.json"
+~~~
+
 ## Global rules backup
 
 [AGENTS.global.md](AGENTS.global.md) is a versioned backup of the live global rules.

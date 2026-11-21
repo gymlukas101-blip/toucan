@@ -32,3 +32,6 @@ retire it in the same change and say why.
 - Diagnose screenshot timeouts and blank viewports separately from playback.
   An unused background tab timed out during the Module 2 dry run. A video
   stall requires an observation of the playhead in the player frame.
+- Read the requirement label and the title link separately. Module 3 and
+  Module 4 both showed “Score at least 100.0”. Only Module 3 had a link.
+  Canvas also displays instruction headers as plain text.

@@ -83,6 +83,7 @@ Updated: 2026-11-21
 | 2026-11-21 | 3 continuation | ~17m | - | - | 84/108/0 | 1 | 0 | 0 | - |
 | 2026-11-21 | 3–4 Canvas completion check | 6.58s | - | - | 3/3/0 | 0 | 0 | 0 | - |
 | 2026-11-21 | 3 rerun and grade verification | 43m45s | - | 87 | 217/284/0 | 3 | 1 | 0 | 100% |
+| 2026-11-21 | 4 and Post-Survey DOM plan | 4.46s | - | 0 | 2/2/0 | 0 | 0 | 0 | - |
 
 Populate from run.jsonl after each run. Use a dash for unavailable measurements.
 The Module 3 rerun counts the 87 decisions and 501 logged actions through

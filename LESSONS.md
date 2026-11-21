@@ -69,4 +69,6 @@ evidence and retain rules that cover recurring failures.
   the video-only caption sampler recorded no captions in this run.
 - [L07] Read the requirement label and the title link separately. Module 3 and
   Module 4 both showed “Score at least 100.0”. Only Module 3 had a link.
-  Canvas also displays instruction headers as plain text.
+  Keep a requested locked item in the plan by its row ID until its link opens.
+  The Module 4 preview listed the locked Post-Survey second with the label
+  “Submit”. Canvas also displays instruction headers as plain text.

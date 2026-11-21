@@ -14,6 +14,7 @@
         !blockedSurface(e) && (visible(e) || [...e.labels || []].some(visible)));
     const active = candidates.filter(({e}) => !e.matches(':disabled, [aria-disabled=true]'));
     const controls = [];
+    const groupKeys = new Map();
     for (const {e, index} of candidates) {
         const tag = e.tagName;
         const disabled = e.matches(':disabled, [aria-disabled=true]');
@@ -35,10 +36,14 @@
             'textarea,select,[contenteditable=true],[role=textbox],[role=combobox],input:not([type=range]):not([type=button]):not([type=submit]):not([type=image]):not([type=reset])')};
         if (choice) info.checked = e.checked === true || e.getAttribute('aria-checked') === 'true';
         if (course) {
-            const section = e.closest('.display_question,fieldset,[role=radiogroup],[role=group],.question');
-            const title = section?.querySelector('.question_text,legend,[data-question-text],.question-header');
-            info.group = choice ? (section?.id || clean(title?.innerText) || section?.getAttribute('aria-label')
-                || e.getAttribute('name') || (section ? 'question-' + [...root.querySelectorAll('fieldset,[role=group],[role=radiogroup],.question')].indexOf(section) : 'choices')) : '';
+            const question = e.closest('.display_question,.question');
+            const section = e.closest('fieldset,[role=radiogroup],[role=group]') || question;
+            const title = question?.querySelector('.question_text,[data-question-text],.question-header')
+                || section?.querySelector('legend,[data-question-text],.question-header');
+            if (choice && section && !groupKeys.has(section))
+                groupKeys.set(section, section.id || 'group-at-' + index);
+            info.group = choice ? [question?.id, groupKeys.get(section),
+                role === 'radio' || !section ? e.getAttribute('name') : ''].filter(Boolean).join('/') || 'choices' : '';
             info.question = choice ? clean(title?.innerText || section?.getAttribute('aria-label')) : '';
             info.id = e.id;
             info.newWindow = tag === 'A' && e.target === '_blank';

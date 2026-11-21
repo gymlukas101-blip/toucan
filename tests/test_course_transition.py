@@ -172,6 +172,24 @@ class CourseTransitionTests(unittest.TestCase):
         self.worker.record_submit(self.driver, dispatched=True)
         self.assertEqual(self.worker.controls(self.driver), [])
 
+    def test_repeated_canvas_answer_group_labels_keep_questions_separate(self):
+        self.worker.item["requirement"] = "must_submit"
+        self.page.set_content("".join(
+            f'<div class="display_question" id="question_{i}"><p class="question_text">Topic {i}</p>'
+            '<div role="group" aria-label="Group of answer choices">'
+            '<label><input type="checkbox">Practice</label></div></div>'
+            for i in (1, 2)) + '<button>Submit Survey</button>')
+        groups = []
+        for i in (1, 2):
+            step, = self.worker.controls(self.driver)
+            self.assertEqual((step["question"], step["control_text"]), (f"Topic {i}", "Practice"))
+            groups.append(step["locator"]["group"])
+            self.assertTrue(self.driver.click(step["locator"]).ok)
+            self.assertTrue(self.page.locator(f"#question_{i} input").is_checked())
+        self.assertNotEqual(*groups)
+        submit, = self.worker.controls(self.driver)
+        self.assertEqual(submit["control_text"], "Submit Survey")
+
     def test_duplicate_frame_names_dispatch_to_the_frame_that_advertised_the_control(self):
         self.page.set_content('<iframe name="ScormContent" srcdoc="outer"></iframe>')
         outer = self.page.frame(name="ScormContent")

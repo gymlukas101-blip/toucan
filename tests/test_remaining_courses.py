@@ -75,6 +75,13 @@ class PlayerChanges(unittest.TestCase):
         self.assertTrue(self.driver.click(two["locator"]).ok)
         self.assertEqual(self.page.locator("button").all_inner_texts(),["Go to next slide","2"])
 
+    def test_unmapped_control_is_logged_once_per_surface(self):
+        self.page.set_content('<button>[object Object]</button>')
+        for _ in range(2):
+            self.worker.controls(self.driver)
+        events = [json.loads(s) for s in self.log.path.read_text().splitlines()]
+        self.assertEqual([e["rule_used"] for e in events if e["action"] == "unmapped-control"], ["L11"])
+
     def test_transparent_storyline_button_uses_its_visible_interactive_artwork(self):
         self.page.set_content("""
             <button id="acc-lesson1" class="acc-shadow-el" style="opacity:0">Start activity</button>

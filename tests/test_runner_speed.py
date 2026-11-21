@@ -14,7 +14,7 @@ from tools.browser.driver import Outcome, RunLog
 from tools.browser.observation import write_observation
 from playwright.sync_api import TimeoutError as PlaywrightTimeout
 from tools.browser.launch import allow_course_popups
-from tools.browser.run import DECISION_SECONDS, click_popup, decide, fast_button, read_transcript, run_loop
+from tools.browser.run import DECISION_SECONDS, _run_loop, click_popup, decide, fast_button, read_transcript, run_loop
 
 
 def status(action):
@@ -63,6 +63,23 @@ class RunnerSpeedTests(unittest.TestCase):
         self.model.assert_called_once()
         fast, = [e for e in self.events() if e["action"] == "fast-path"]
         self.assertEqual((fast["tier"], fast["rule_used"]), ("T0", "L15"))
+
+    def test_empty_course_menu_is_rechecked_without_spending_a_decision(self):
+        course = Mock(origins={"https://fixture.test"}, player=self.driver.page,
+                      item={"title": "Test activity"}, launch_popups=[])
+        course.at_item.return_value = True
+        course.native_attempt.return_value = False
+        course.controls.return_value = []
+        course.select_all_steps.return_value = []
+        course.completion_proof.return_value = ""
+        self.driver.media_advancing.side_effect = [False, True, False, False]
+        with patch("tools.browser.run.decide") as model, patch("tools.browser.run.time.sleep"), \
+                patch("tools.browser.run.hard_block", return_value=""):
+            outcome = _run_loop(self.task, self.driver, self.transcript, self.folder, course_item=course)
+        self.assertEqual(outcome.result, "blocked")
+        self.assertIn("empty twice", outcome.detail)
+        self.assertEqual(self.driver.read.call_count, 4)
+        model.assert_not_called()
 
     def test_popup_retries_once_and_blocks_without_an_event(self):
         @contextmanager

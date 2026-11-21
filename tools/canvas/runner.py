@@ -280,6 +280,7 @@ class CourseItem:
         self.launch_popups = []
         self.origins = set(item.get("allowed_origins", ())) | {web_origin(item["url"])}
         self.selection_plans = {}
+        self.unmapped_frames = set()
         self.profile = ProfileAnswers()
 
     def native_attempt(self, page):
@@ -432,6 +433,10 @@ class CourseItem:
                 # A Storyline shadow button can literally be named "[object Object]".
                 # Present the matching slide artwork while keeping the browser's actual locator.
                 display = control["artwork"] if name == "[object Object]" and control["artwork"] else name
+                if name == "[object Object]" and not control["artwork"] and frame_key not in self.unmapped_frames:
+                    self.unmapped_frames.add(frame_key)
+                    driver.log.write("unmapped-control", self.item["title"], "miss", 0, tier="T1",
+                                     rule_used="L11", detail="The shadow button has no matching visible artwork label. Inspect the viewport.")
                 prompt = control["prompt"]
                 if re.search(r"captions?|accessibility|^(?:continue|next|previous|ok|submit|start course)$", display, re.I):
                     prompt = ""

@@ -397,6 +397,7 @@ def _run_loop(task, driver, transcript_path, capture, *, course_item=None):
     timeout_fallback = False
     stalls = 0
     missed_captures = 0
+    empty_menus = 0
     next_capture = 0.0
     domain_attempt = False
     while stalls < 3:
@@ -452,6 +453,20 @@ def _run_loop(task, driver, transcript_path, capture, *, course_item=None):
             steps = course_item.select_all_steps(driver, steps, observed.value, capture, read_transcript(transcript_path))
             task = {**task, "actions": steps}
             menu = {(s["action"], s["target"], s.get("text", "")): s for s in steps}
+            if not steps and observed.value:
+                if driver.media_advancing():
+                    empty_menus = 0
+                    next_capture = captured_at + MEDIA_POLL_SECONDS
+                    continue
+                empty_menus += 1
+                driver.log.write("empty-menu", course_item.item["title"], "miss", 0, tier="T1",
+                                 rule_used="L11", detail=f"No actionable course controls on observation {empty_menus}.")
+                if empty_menus == 2:
+                    # Returning releases the sampler before the queue verifies the Canvas row.
+                    return Outcome("blocked", detail="The settled course control menu was empty twice.")
+                next_capture = captured_at + 10
+                continue
+            empty_menus = 0
         transcript = read_transcript(transcript_path)
         # DOM state identifies the clicked screen even if hover pixels or the transcript change.
         view = json.dumps(observed.value, sort_keys=True).encode()

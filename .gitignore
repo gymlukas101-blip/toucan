@@ -6,3 +6,7 @@ desktop.ini
 # OneDrive conflict copies
 *[0-9].jpg
 *-Lukas-PC.jpg
+
+secrets/
+*.jwt
+.env

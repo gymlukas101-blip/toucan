@@ -1,3 +1,4 @@
 *.md text eol=lf
 *.log text eol=lf
 *.json text eol=lf
+.githooks/pre-commit text eol=lf

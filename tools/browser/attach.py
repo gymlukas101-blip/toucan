@@ -15,7 +15,7 @@ def attach(playwright: Playwright, *, port: int = PORT, timeout: float = 20) -> 
     wait_ready(port, timeout)
     try:
         return playwright.chromium.connect_over_cdp(
-            f"http://{HOST}:{port}", timeout=max(1, (deadline - monotonic()) * 1000),
+            f"http://{HOST}:{port}", no_defaults=True, timeout=max(1, (deadline - monotonic()) * 1000),
         )
     except Error as exc:
         raise BrowserUnavailable(f"Cannot attach Playwright to Toucan Chrome on port {port}.") from exc

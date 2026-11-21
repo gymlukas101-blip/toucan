@@ -127,8 +127,16 @@ class Driver:
 
     def read(self) -> Outcome:
         def observe():
+            controls = """els => els.filter(e => e.checkVisibility() && e.getClientRects().length).map(e => ({
+                role: e.getAttribute('role') || (e.tagName === 'A' ? 'link' : 'button'),
+                name: (e.getAttribute('aria-labelledby') || '').split(/ +/).filter(Boolean)
+                        .map(id => document.getElementById(id)?.innerText || '').join(' ').trim()
+                    || e.getAttribute('aria-label') || e.innerText?.trim() || e.value || e.title || ''
+            })).filter(c => c.name)"""
+            selector = "button,a[href],[role=button],[role=link],input[type=submit],input[type=button]"
             return [dict(name=f.name, url=public_url(f.url), main=f == self.page.main_frame,
-                         text=f.locator("body").inner_text(timeout=2000))
+                         text=f.locator("body").inner_text(timeout=2000),
+                         controls=f.locator(selector).evaluate_all(controls))
                     for f in visible_frames(self.page) if f.locator("body").count()]
         return self._action("read", "visible frame text", observe, tier="T1")
 
@@ -137,7 +145,9 @@ class Driver:
             part = urlsplit(url)
             if part.scheme not in {"http", "https"} or not part.hostname or part.username or part.password:
                 raise ActionFailure("aborted", "Supply an HTTP(S) URL without embedded credentials.")
-            self.page.goto(url, wait_until="domcontentloaded", timeout=15000)
+            response = self.page.goto(url, wait_until="domcontentloaded", timeout=15000)
+            if response and response.status >= 400:
+                raise ActionFailure("aborted", f"The page returned HTTP {response.status}.")
             return public_url(self.page.url)
         return self._action("goto", public_url(url), navigate)
 
@@ -166,7 +176,8 @@ class Driver:
         for f in visible_frames(self.page):
             host = (urlsplit(f.url).hostname or "").lower()
             if (host == "login.wisc.edu" or host.endswith(".duosecurity.com")
-                    or f.locator('input[type=password]:visible,input[autocomplete=one-time-code]:visible').count()):
+                    or f.locator('input[type=password]:visible,input[autocomplete=one-time-code]:visible,'
+                                 'input[autocomplete=username]:visible').count()):
                 return True
         return False
 
@@ -234,6 +245,7 @@ class Driver:
         return self._action("scroll", str(dy), wheel)
 
     def shot(self, path: Path) -> Outcome:
+        path = Path(path)
         def capture():
             path.parent.mkdir(parents=True, exist_ok=True)
             self.page.screenshot(path=str(path), full_page=False, timeout=5000)

@@ -1,7 +1,10 @@
 #!/usr/bin/env python3
 """Validate the format, source and date of Markdown memory facts."""
 
+import os
 import re
+import subprocess
+from collections.abc import Iterator
 from datetime import date
 from pathlib import Path
 
@@ -12,12 +15,29 @@ LINE = re.compile(
 )
 
 
+def memory_files(root: Path) -> Iterator[tuple[Path, str]]:
+    """Git supplies GIT_INDEX_FILE during a commit; standalone runs check working files."""
+    if "GIT_INDEX_FILE" not in os.environ:
+        for path in sorted((root / "memory").rglob("*.md")):
+            yield path, path.read_text(encoding="utf-8-sig")
+        return
+
+    names = subprocess.check_output(
+        ["git", "ls-files", "-z", "--", ":(glob)memory/**/*.md"], cwd=root
+    )
+    for name in names.split(b"\0"):
+        if name:
+            relative = os.fsdecode(name)
+            blob = subprocess.check_output(["git", "cat-file", "blob", f":0:{relative}"], cwd=root)
+            yield root / relative, blob.decode("utf-8-sig")
+
+
 def main() -> int:
     root = Path(__file__).resolve().parents[1]
     memory = root / "memory"
     bad = 0
-    for path in sorted(memory.rglob("*.md")):
-        for number, line in enumerate(path.read_text(encoding="utf-8-sig").splitlines(), 1):
+    for path, contents in memory_files(root):
+        for number, line in enumerate(contents.splitlines(), 1):
             if not line.lstrip().startswith("- "):
                 continue
             match = LINE.fullmatch(line.rstrip())

@@ -17,6 +17,11 @@ REQUIREMENTS = {"must_submit", "min_score", "mark_done", "unknown"}
 def validate(queue):
     if not isinstance(queue, dict) or queue.get("type") not in TYPES or not isinstance(queue.get("items"), list):
         raise ValueError("Expected a single, course_all or multi queue with an items list.")
+    if "explicit_order" in queue:
+        order = queue["explicit_order"]
+        if (not isinstance(order, list) or not all(isinstance(key, str) and key for key in order)
+                or len(set(order)) != len(order)):
+            raise ValueError("An explicit sequence needs a list of distinct item keys.")
     seen = set()
     for row in queue["items"]:
         if not isinstance(row, dict):

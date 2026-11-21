@@ -9,6 +9,7 @@ from tools.canvas.resolve import Ambiguous, normalized, resolve
 
 ALL = re.compile(r"^(?:every|all)(?: the)? (?:modules?|items?)$", re.I)
 AND = re.compile(r"\s+and\s+", re.I)
+THEN = re.compile(r",?\s+(?:and\s+)?then\s+", re.I)
 
 
 def _one_item(name, rows):
@@ -34,6 +35,9 @@ def _select(phrase, rows):
     # Match an entire title before interpreting an "and" inside it as a separator.
     if match := _one_item(phrase, rows):
         return [match]
+    if join := THEN.search(phrase):
+        rest = re.sub(r"^(?:do|complete|finish)\s+", "", phrase[join.end():], flags=re.I)
+        return [*_select(phrase[:join.start()], rows), *_select(rest, rows)]
     for conjunction in AND.finditer(phrase):
         if first := _one_item(phrase[:conjunction.start()], rows):
             rest = re.sub(r"^(?:do|complete|finish)\s+", "", phrase[conjunction.end():], flags=re.I)
@@ -73,8 +77,12 @@ def queue_item(row, course_id):
             "course_id": course_id, "status": "pending", "note": ""}
 
 
-def course_order(rows):
-    """Keep DOM order except where visible course instructions specify precedence."""
+def course_order(rows, explicit_order=()):
+    """Apply the requested sequence, then honor visible prerequisites."""
+    if explicit_order:
+        ranks = {key: n for n, key in enumerate(explicit_order)}
+        selected = iter(sorted((r for r in rows if r["key"] in ranks), key=lambda r: ranks[r["key"]]))
+        rows = [next(selected) if r["key"] in ranks else r for r in rows]
     aliases, numbers = {}, {}
     for row in rows:
         if row["state"] == "instruction":
@@ -133,21 +141,26 @@ def plan(request, courses, read_modules, course=None):
     if not phrase:
         raise ValueError("Supply the items to plan.")
     scopes = _scopes(phrase, course, courses)
-    listings, chosen = {}, set()
+    listings, chosen, explicit_order = {}, set(), []
     for selection, resolved in scopes:
         selection = re.sub(r"^(?:do|complete|finish)\s+", "", selection, flags=re.I)
         cid = resolved["id"]
         if cid not in listings:
             listings[cid] = {"course": resolved, "rows": read_modules(cid)}
-        chosen.update(r["key"] for r in _select(selection, listings[cid]["rows"]))
+        selected = [r["key"] for r in _select(selection, listings[cid]["rows"])]
+        chosen.update(selected)
+        if len(selected) > 1 and THEN.search(selection):
+            explicit_order.extend(selected)
     kind = "multi" if len(chosen) > 1 or len(scopes) > 1 else "single"
     if len(scopes) == 1 and ALL.fullmatch(scopes[0][0]):
         kind = "course_all"
     queue = {"type": kind, "request": request, "course_query": course,
              "courses": [v["course"] for v in listings.values()], "items": [], "requested_keys": []}
+    if explicit_order:
+        queue["explicit_order"] = list(dict.fromkeys(explicit_order))
     locked, deferred, order = [], [], []
     for listing in listings.values():
-        for row in course_order(listing["rows"]):
+        for row in course_order(listing["rows"], explicit_order):
             if row["state"] == "locked":
                 locked.append(row["title"])
             if row["key"] not in chosen:

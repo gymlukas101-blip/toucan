@@ -113,7 +113,7 @@ def _reconcile(queue, dom):
     known = {i["key"] for i in queue["items"]}
     rows, deferred = [], []
     for cid in ids:
-        course_rows = course_order(dom.modules(cid, refresh=True))
+        course_rows = course_order(dom.modules(cid, refresh=True), queue.get("explicit_order", ()))
         rows.extend(course_rows)
         for row in course_rows:
             if entire_course and whole_course_row(row) and row["key"] not in requested:

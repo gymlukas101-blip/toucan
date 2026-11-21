@@ -143,6 +143,22 @@ class CanvasQueueTests(unittest.TestCase):
         self.assertEqual([(i["key"], i["status"]) for i in completed["items"]], [("42:4", "done"), ("42:5", "done")])
         self.assertEqual(deferred, [])
 
+    def test_explicit_sequence_survives_rescans_of_reversed_assignment_list(self):
+        self.dom.rows = [row(2, "Decisions Part 2"), row(1, "Decisions")]
+        default, _ = plan("complete all items", [COURSE], self.dom.modules, "42")
+        self.assertEqual([i["key"] for i in default["items"]], ["42:2", "42:1"])
+        queue, preview = dry_run(self.dom, "complete Decisions, then Decisions Part 2", "42", self.folder)
+        self.assertEqual(preview["order"], ["Decisions", "Decisions Part 2"])
+        self.assertEqual(queue["explicit_order"], ["42:1", "42:2"])
+        attempted = []
+        def finish(item, player, persist):
+            attempted.append(item["key"])
+            row = next(r for r in self.dom.rows if r["key"] == item["key"])
+            row.update(state="complete", label="Submitted")
+            return Outcome("ok")
+        _, deferred = walk_queue(self.path, self.dom, lambda q: {}, finish)
+        self.assertEqual((attempted, deferred), (["42:1", "42:2"], []))
+
     def test_visible_prerequisite_overrides_reversed_list_and_request(self):
         for instruction in ("Complete Module 4 after Module 3.", "Before Module 4, finish Module 3.",
                             "After Module 3, complete Module 4."):

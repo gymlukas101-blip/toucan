@@ -2,6 +2,20 @@
 (elements, course) => {
     const visible = e => e.checkVisibility({visibilityProperty: true, opacityProperty: true})
         && e.getClientRects().length > 0;
+    // Storyline can make its accessibility button transparent while showing a clickable
+    // shape with the same model ID. Inactive slides can retain their old buttons.
+    const artworkTargets = new Map();
+    if (course) {
+        for (const e of elements) {
+            if (!e.classList.contains('acc-shadow-el') || !e.id.startsWith('acc-') || visible(e)) continue;
+            const id = CSS.escape(e.id.slice(4));
+            const shapes = [...e.getRootNode().querySelectorAll(
+                `.slide-object.shown.cursor-hover[data-model-id="${id}"]`)].filter(visible);
+            if (shapes.length === 1 && !shapes[0].closest('[inert],[aria-hidden=true].slide')) {
+                artworkTargets.set(e, shapes[0]);
+            }
+        }
+    }
     // Moodle's numbered activity index is coursework navigation within this vendor.
     const courseActivity = e => course && e.tagName === 'A' && location.hostname === 'wisc.prevent.zone'
         && e.origin === location.origin && !!e.closest('#course-index,.courseindex,.course-content,.activity,.block_navigation')
@@ -10,13 +24,14 @@
     const blockedSurface = e => {
         for (let node = e; node; node = node.getRootNode().host) {
             if (node.closest('[inert], .quiz__card:not(.quiz__card--active)')) return true;
+            if (courseActivity(e) && node.closest('.courseindex-item.restrictions.dimmed')) return true;
             if (e.tagName === 'A' && !courseActivity(e) && node.closest('nav, [role=navigation], #breadcrumbs, #section-tabs, footer')) return true;
         }
         return false;
     };
     const clean = text => (text || '').trim().replace(/\s+/g, ' ');
     const candidates = elements.map((e, index) => ({e, index})).filter(({e}) =>
-        !blockedSurface(e) && (visible(e) || [...e.labels || []].some(visible)));
+        !blockedSurface(e) && (visible(e) || artworkTargets.has(e) || [...e.labels || []].some(visible)));
     const active = candidates.filter(({e}) => !e.matches(':disabled, [aria-disabled=true]'));
     const controls = [];
     const groupKeys = new Map();
@@ -59,6 +74,7 @@
                 role === 'radio' || !section ? e.getAttribute('name') : ''].filter(Boolean).join('/') || 'choices' : '';
             info.question = choice ? clean(title?.innerText || section?.getAttribute('aria-label')) : '';
             info.id = e.id;
+            if (artworkTargets.has(e)) info.artworkTarget = artworkTargets.get(e).dataset.modelId;
             info.newWindow = tag === 'A' && e.target === '_blank';
             info.inForm = !!e.closest('form');
             info.artwork = '';

@@ -295,7 +295,12 @@ class Driver:
                                     and c["group"] == spec.get("group", "")
                                     and c.get("position") == spec.get("position") and c.get("peerCount") == spec.get("peers")
                                     and (not spec.get("control_id") or c["id"] == spec["control_id"])):
-                                matches.append(controls.nth(c["index"]))
+                                if c.get("artworkTarget"):
+                                    model_id = json.dumps(c["artworkTarget"])
+                                    art = surface.locator(f'.slide-object.shown.cursor-hover[data-model-id={model_id}]')
+                                    matches.extend(node for node in art.all() if node.is_visible())
+                                else:
+                                    matches.append(controls.nth(c["index"]))
                     return matches
                 searches = [discovered]
             for search in searches:
@@ -504,7 +509,7 @@ class Driver:
         self._next_viewport = time.monotonic() + 10
         try:
             native_attempt = re.fullmatch(r"/courses/\d+/quizzes/\d+/take/?", urlsplit(self.page.url).path)
-            if background_recovery or (native_attempt and self.page.evaluate("document.hidden")):
+            if background_recovery or native_attempt:
                 # A hidden tab can finish reloading without repainting its window surface.
                 # Ask Chrome to rasterize just this tab's visible viewport offscreen.
                 session = self.page.context.new_cdp_session(self.page)
@@ -590,6 +595,15 @@ class Driver:
                 self.check_player()
                 self.log.write("capture_retry", reason, "miss", (time.monotonic() - started) * 1000, rule_used="L06")
                 data, reason = self._capture_state(kind)
+                if (reason == "screenshot timed out" and self.player_watch is not None and
+                        self.page.evaluate("document.hidden")):
+                    self.check_player()
+                    self.page.bring_to_front()
+                    self.page.wait_for_function("document.visibilityState==='visible'", timeout=5000)
+                    self.check_player()
+                    self.log.write("select-player-tab","bound player","ok",0,rule_used="L06",
+                                   detail="Selected the same course tab for a compositor capture.")
+                    data, reason = self._viewport(kind, background_recovery=True)
                 if reason == "screenshot timed out":
                     raise ActionFailure("miss", "Viewport capture timed out twice.")
             if reason:

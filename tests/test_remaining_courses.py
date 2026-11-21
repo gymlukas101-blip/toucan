@@ -12,7 +12,7 @@ from tools.browser.driver import Driver, Outcome, RunLog
 from tools.browser.player import OriginChanged, PlayerWatch, player_identity
 from tools.canvas.profile import ProfileAnswers, resolve_personal
 from tools.canvas.quiz import attempt, run_quiz
-from tools.canvas.runner import CourseItem
+from tools.canvas.runner import CourseItem, open_assignment_player
 from tools.canvas.tabs import cleanup
 
 
@@ -47,8 +47,11 @@ class PlayerChanges(unittest.TestCase):
         self.assertEqual(set(self.item["allowed_origins"]),{"https://canvas.wisc.edu",*urls[:2]})
         watch = PlayerWatch(self.item["player_identity"], self.worker.origins)
         with self.assertRaises(OriginChanged), watch.observe(self.page):
+            embedded = next(f for f in self.page.frames if f.parent_frame == self.page.main_frame)
+            watch.track_media(embedded)
             self.page.goto(urls[1]+"/activity")
             watch.check(self.page)
+            self.assertFalse(watch.ended.is_set())
             self.assertTrue(self.worker.at_item(self.page))
             self.page.goto(urls[2]+"/unrelated")
             watch.check(self.page)
@@ -71,6 +74,20 @@ class PlayerChanges(unittest.TestCase):
         self.assertIn("slide #2",two["target"])
         self.assertTrue(self.driver.click(two["locator"]).ok)
         self.assertEqual(self.page.locator("button").all_inner_texts(),["Go to next slide","2"])
+
+    def test_transparent_storyline_button_uses_its_visible_interactive_artwork(self):
+        self.page.set_content("""
+            <button id="acc-lesson1" class="acc-shadow-el" style="opacity:0">Start activity</button>
+            <button id="acc-old" class="acc-shadow-el" style="opacity:0">Old activity</button>
+            <div class="slide-object shown cursor-hover" data-model-id="lesson1"
+                 onpointerup="document.querySelector('output').textContent='Opened'">
+                <span class="slide-object shown" data-model-id="lesson1" data-acc-text="Start activity">Start activity</span>
+            </div><output></output>""")
+        steps = self.worker.controls(self.driver)
+        self.assertNotIn("Old activity", [s["control_text"] for s in steps])
+        start, = [s for s in steps if s["control_text"] == "Start activity"]
+        self.assertTrue(self.driver.click(start["locator"]).ok)
+        self.assertEqual(self.page.locator("output").inner_text(), "Opened")
 
     def test_select_all_six_applicable_options_then_continue(self):
         for include_distractor in (False, True):
@@ -105,7 +122,7 @@ class PlayerChanges(unittest.TestCase):
         posted=[]
         def receipt(r):
             posted.append(r.request.post_data)
-            r.fulfill(content_type="text/html",body="<main>Score for this quiz: 3 out of 3</main>")
+            r.fulfill(content_type="text/html",body="<main>Score for this quiz: 3 out of 3. Some questions not yet graded.</main>")
         self.page.route(base,receipt)
         self.page.goto(base+"/take")
         worker=CourseItem(self.item,Mock(),entry_url=self.page.url)
@@ -119,10 +136,28 @@ class PlayerChanges(unittest.TestCase):
         self.assertEqual(len(posted),1)
         self.assertIn("a=no&b=0&c=",posted[0])
         self.assertEqual(self.item["quiz"]["score"],"3 out of 3")
+        self.assertTrue(self.item["quiz"]["grading_pending"])
         self.assertEqual(len(self.profile.read()[1]),3)
 
 
 class PrivateProfileAndCleanup(unittest.TestCase):
+    def test_preexisting_vendor_window_must_match_the_assignment_opener_and_title(self):
+        assignment="https://canvas.wisc.edu/courses/42/assignments/3"
+        item=dict(title="Example", url=assignment)
+        def window(url,title,opener):
+            page=Mock(url=url)
+            page.is_closed.return_value=False
+            page.opener.return_value=Mock(url=opener)
+            page.title.return_value=title
+            return page
+        right=window("https://vendor.invalid/course","Course: Example","https://canvas.wisc.edu/courses/42/assignments/3")
+        wrong=window("https://vendor.invalid/course","Course: Example","https://canvas.wisc.edu/courses/42/assignments/4")
+        other=window("https://vendor.invalid/else","Different course",assignment)
+        browser=Mock(contexts=[Mock(pages=[wrong,other,right])])
+        self.assertIs(open_assignment_player(browser,item),right)
+        browser.contexts[0].pages.append(window("https://vendor.invalid/other","Course: Example",assignment))
+        self.assertIsNone(open_assignment_player(browser,item))
+
     def test_personal_precedence_and_reuse(self):
         with tempfile.TemporaryDirectory() as scratch:
             profile=ProfileAnswers(Path(scratch)/"profile.md")

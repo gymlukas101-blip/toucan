@@ -127,9 +127,28 @@ class PlayerWatch:
                 self.navigation(page.url)
             elif error and player_ended(None, None, error):
                 course = getattr(self._connection, "course", None)
-                if course and not course.is_detached() and self._connection.documents[course] == player_identity(course.url):
+                if course and not course.is_detached() and self._connection.documents.get(course) == player_identity(course.url):
                     raise LessonChanged("An embedded activity changed inside the open course.")
                 self.finish("The browser reported a detached player frame during an action.")
+            if not self.ended.is_set() and getattr(self._connection, "detached_at", None):
+                elapsed = time.monotonic() - self._connection.detached_at
+                if elapsed < 1:
+                    page.wait_for_timeout(round((1-elapsed)*1000))
+                self._connection.detached_at = None
+                if page.is_closed():
+                    self.finish("The player window closed.")
+                elif player_identity(page.url) != self.identity:
+                    self.navigation(page.url)
+                else:
+                    # The outer player may replace its media frame with a readable activity or quiz.
+                    self._connection.course = next((f for f in page.frames if f.name=="scormdriver_content"), None)
+                    if self._connection.course:
+                        self.track_media(self._connection.course)
+                    if not any(f.locator("body").count() and f.locator("body").evaluate("""b=>{
+                        const t=b.innerText.trim();return !!t && !/^thank you[.!]?$/i.test(t)
+                            || !!b.querySelector('video,audio,button,input:not([type=hidden])');
+                    }""",timeout=1000) for f in page.frames if not f.is_detached()):
+                        self.finish("The bound frame detached and no learner activity remained.")
         if self.ended.is_set():
             if self.denied:
                 raise OriginChanged(self.reason)
@@ -159,7 +178,11 @@ class PlayerWatch:
 
         def detached(frame):
             if frame in documents:
-                self.finish("A bound player frame detached.")
+                if self.origins is None or frame == page.main_frame:
+                    self.finish("A bound player frame detached.")
+                else:
+                    documents.pop(frame, None)
+                    self._connection.detached_at = time.monotonic()
 
         def navigated(frame):
             if frame in documents and player_identity(frame.url) != documents[frame]:

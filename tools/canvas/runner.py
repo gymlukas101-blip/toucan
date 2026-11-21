@@ -9,7 +9,7 @@ import time
 from contextlib import contextmanager
 from datetime import datetime, timezone
 from pathlib import Path
-from urllib.parse import urlsplit
+from urllib.parse import parse_qs, urlsplit
 
 from playwright.sync_api import Error, sync_playwright
 
@@ -18,7 +18,7 @@ from tools.browser.attach import attach
 from tools.browser.driver import Driver, Outcome, controls_on, keyed_frames, public_url
 from tools.browser.launch import apply_running_popup_preference, launch
 from tools.browser.player import (OriginChanged, PlayerEnded, exit_document, player_ended,
-                                  player_identity as _player_identity, target_id, web_origin)
+                                  player_identity as _player_identity, target_id, wait_for_player, web_origin)
 from tools.browser.run import BLOCKED, choose_page, hard_block, run_loop
 from tools.canvas.completion import SUBMIT, mid_positive, quiz_evidence, quiz_summary
 from tools.canvas.dom import CanvasDOM, ORIGIN
@@ -147,6 +147,8 @@ def _reconcile(queue, dom):
             mark(queue, item["key"], "done", "Canvas confirmed completion: " + (row["label"] or "checkmark"))
             if item.get("quiz", {}).get("canvas_result"):
                 item["note"] = "Canvas posted the quiz score " + item["quiz"]["score"] + "."
+                if item["quiz"].get("grading_pending"):
+                    item["note"] += " Provisional. Canvas is still grading this attempt."
         elif verifying_end:
             evidence = "row missing" if not row else f"{row['state']} ({row['label'] or 'no status label'})"
             if row and row["url"] and row["url"] != item["url"]:
@@ -553,7 +555,32 @@ class CourseItem:
         return steps
 
 
+def open_assignment_player(browser, item):
+    """An assignment can have already opened its vendor window before this run."""
+    matching = []
+    item_title = normalized(re.sub(r"^\d+[.)]\s*|\s+program$", "", item["title"],flags=re.I))
+    item_url = public_url(item["url"])
+    module = parse_qs(urlsplit(item["url"]).query).get("module_item_id")
+    for page in browser.contexts[0].pages:
+        if page.is_closed() or not web_origin(page.url) or web_origin(page.url)==ORIGIN or exit_document(page.url):
+            continue
+        opener = page.opener()
+        if not opener or public_url(opener.url) != item_url or (module and parse_qs(urlsplit(opener.url).query).get("module_item_id") != module):
+            continue
+        title = normalized(page.title())
+        if title and (f" {item_title} " in f" {title} " or f" {title} " in f" {item_title} "):
+            matching.append(page)
+    return matching[0] if len(matching)==1 else None
+
+
 def perform_item(browser, dom, item, player, persist):
+    if player is None:
+        player = open_assignment_player(browser, item)
+        if player:
+            wait_for_player(player)
+            CourseItem(item, persist, player, dom=dom).remember_popup(player)
+            dom.log.write("resume-existing", item["title"], "ok", 0, rule_used="L14",
+                          detail="Matched the existing vendor window's Canvas assignment opener and course title.")
     page = player or choose_page(browser, item["url"], excluded_targets=dom.ended_targets)
     dom.driven_page = page
     popups = []

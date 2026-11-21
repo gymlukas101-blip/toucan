@@ -118,6 +118,14 @@ def run_quiz(driver, worker, capture, transcript, *, profile=None, decide_labels
         if reason := hard_block(driver):
             raise RuntimeError(reason)
         shot = driver.shot(capture / "viewport.png")
+        if not shot.ok and re.search(r"timed out|blank viewport",shot.detail,re.I) and page.evaluate("document.hidden"):
+            if urlsplit(page.url)[:2] != origin or urlsplit(page.url).path.rstrip("/") != path:
+                raise ValueError("The original Canvas attempt is no longer open.")
+            page.bring_to_front()
+            page.wait_for_function("document.visibilityState==='visible'",timeout=5000)
+            driver.log.write("select-quiz-tab", worker.item["title"], "ok", 0, rule_used="L06",
+                             detail="Selected the same Canvas attempt after background capture timed out.")
+            shot = driver.shot(capture / "viewport.png")
         if not shot.ok:
             raise RuntimeError(shot.detail)
     def choose(question, labels, kind, nonbranching):
@@ -199,6 +207,9 @@ def run_quiz(driver, worker, capture, transcript, *, profile=None, decide_labels
                 score = POSTED.search(body)
                 if score:
                     worker._milestone(driver, "score", score[1], "quiz-score", "Posted Canvas score " + score[1])
+                    if re.search(r"some questions (?:are )?not yet graded|awaiting (?:manual )?grading", body, re.I):
+                        worker._milestone(driver, "grading_pending", True, "grading-pending",
+                                          "Canvas says that some questions still need grading.")
                     worker._milestone(driver, "canvas_result", True, "verify-quiz", "Score on this quiz's Canvas results page.")
                     return Outcome("ok", detail="Canvas posted the quiz score " + score[1] + ".")
                 if re.search(r"\b(?:submitted (?:on|at)|survey submitted|attempt submitted)\b", body, re.I):

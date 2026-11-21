@@ -31,6 +31,13 @@ The current checkout is `C:\Users\gymlu\OneDrive\Documents\Toucan`.
   the media playhead in its frame.
 
 ## Layout
+
+Read files directly for agent-only inspection. When a task needs a native
+text editor, reuse one Notepad window. Check each absolute path with
+`Test-Path -LiteralPath` before opening it. Log `path-missing` and continue
+when a file is missing. Pass the path in quotes. Launch with
+`Start-Process -WindowStyle Normal`, then move and size the window once.
+
 - notes.md       rolling notes, appended as you go
 - transcript.md  verbatim caption text, `[MM:SS] text`, appended as it plays
 - run.jsonl      one JSON object per action (see below)

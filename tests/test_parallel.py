@@ -102,12 +102,14 @@ def focus_test_browser(page):
 
 
 class Notepad:
-    """Type only while the uniquely named, disposable Notepad document owns the foreground."""
+    """Reuse one normal-sized, named proof document throughout a suite."""
 
-    def __init__(self, folder):
-        self.file = folder / ("toucan-proof-" + uuid.uuid4().hex + ".txt")
-        self.file.write_bytes(b"")
-        self.cursor = cursor_position()
+    def __init__(self, file, log):
+        self.file = file.resolve()
+        self.log = log
+        self.hwnd = None
+        self.started = False
+        self.positioned = False
         self.parked = None
 
     def scratch_point(self):
@@ -122,8 +124,8 @@ class Notepad:
         return None
 
     def __enter__(self):
-        win32api.ShellExecute(0, "open", str(Path(os.environ["SYSTEMROOT"]) / "System32/notepad.exe"),
-                              subprocess.list2cmdline([str(self.file)]), None, win32con.SW_SHOWNORMAL)
+        self.cursor = cursor_position()
+        self.parked = None
         def scratch_window():
             """the test document's Notepad window"""
             matches = []
@@ -133,8 +135,40 @@ class Notepad:
                     matches.append(hwnd)
             win32gui.EnumWindows(visit, None)
             return matches[0] if len(matches) == 1 else None
-        self.hwnd = wait_for(scratch_window, 12)
-        win32gui.ShowWindow(self.hwnd, win32con.SW_SHOWMAXIMIZED)
+        self.hwnd = scratch_window()
+        started_at = time.monotonic()
+        check = """
+        $file = $env:TOUCAN_EDITOR_PATH
+        if (-not [IO.Path]::IsPathFullyQualified($file) -or -not (Test-Path -LiteralPath $file -PathType Leaf)) { exit 2 }
+        if ($env:TOUCAN_EDITOR_START -eq 'yes') {
+            Start-Process -FilePath (Join-Path $env:SystemRoot 'System32/notepad.exe') -WindowStyle Normal -ArgumentList ('"' + $file + '"')
+        }
+        """
+        launch_editor = not self.hwnd and not self.started
+        result = subprocess.run(["pwsh", "-NoProfile", "-NonInteractive", "-Command", check],
+                                env={**os.environ, "TOUCAN_EDITOR_PATH": str(self.file),
+                                     "TOUCAN_EDITOR_START": "yes" if launch_editor else "no"},
+                                creationflags=subprocess.CREATE_NO_WINDOW, timeout=15)
+        if result.returncode == 2:
+            self.log.write("open-file", self.file.name, "path-missing", (time.monotonic()-started_at)*1000, driver="computer")
+            raise unittest.SkipTest("Missing editor fixture. Continuing the suite.")
+        result.check_returncode()
+        self.started = True
+        if not self.hwnd:
+            if not launch_editor:
+                self.log.write("reuse-notepad", self.file.name, "miss", (time.monotonic()-started_at)*1000, driver="computer")
+                raise unittest.SkipTest("The existing proof tab is unavailable. Continuing the suite.")
+            self.hwnd = wait_for(scratch_window, 12)
+            self.log.write("launch-notepad", self.file.name, "ok", (time.monotonic()-started_at)*1000, driver="computer")
+        else:
+            self.log.write("reuse-notepad", self.file.name, "ok", (time.monotonic()-started_at)*1000, driver="computer")
+        if not self.positioned:
+            win32gui.ShowWindow(self.hwnd, win32con.SW_RESTORE)
+            screen_w, screen_h = win32api.GetSystemMetrics(0), win32api.GetSystemMetrics(1)
+            w, h = min(680, screen_w//2), min(440, screen_h//2)
+            win32gui.SetWindowPos(self.hwnd, 0, screen_w-w-16, 16, w, h,
+                                  win32con.SWP_NOZORDER | win32con.SWP_NOACTIVATE)
+            self.positioned = True
         if not self.active():
             try:
                 win32gui.SetForegroundWindow(self.hwnd)
@@ -203,13 +237,6 @@ class Notepad:
             win32api.keybd_event(win32con.VK_CONTROL, 0, win32con.KEYEVENTF_KEYUP, 0)
 
     def __exit__(self, *_):
-        if self.active():
-            self.shortcut("S")
-            time.sleep(.2)
-            if self.active():
-                self.shortcut("W")
-                wait_for(lambda: not win32gui.IsWindow(self.hwnd) or
-                         self.file.stem not in win32gui.GetWindowText(self.hwnd))
         if self.parked and cursor_position() == self.parked:
             win32api.SetCursorPos(self.cursor)
 
@@ -276,11 +303,31 @@ class Pages(BaseHTTPRequestHandler):
         pass
 
 
+class NativeEditorHygiene(unittest.TestCase):
+    def test_missing_file_logs_and_continues_without_launch(self):
+        with tempfile.TemporaryDirectory() as folder:
+            log = RunLog(Path(folder) / "run.jsonl")
+            editor = Notepad(Path(folder) / "missing proof file.txt", log)
+            with self.assertRaises(unittest.SkipTest):
+                editor.__enter__()
+            self.assertFalse(editor.started)
+            self.assertEqual(json.loads(log.path.read_text(encoding="utf-8"))["result"], "path-missing")
+
+
 @unittest.skipUnless(sys.platform == "win32", "Requires an interactive Windows desktop")
 class ParallelBrowser(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         launch()
+        native_dir = Path(os.environ["LOCALAPPDATA"]) / "Toucan/fixtures/native"
+        native_dir.mkdir(parents=True, exist_ok=True)
+        # Windows Notepad restores its tabs after restart. Keep its proof file at a stable path.
+        proof = native_dir / "toucan-foreground-proof.txt"
+        try:
+            proof.touch(exist_ok=False)
+        except FileExistsError:
+            pass
+        cls.editor = Notepad(proof, RunLog(native_dir / "native.jsonl"))
         cls.pw = sync_playwright().start()
         cls.addClassCleanup(cls.pw.stop)
         cls.browser = attach(cls.pw)
@@ -405,7 +452,8 @@ class ParallelBrowser(unittest.TestCase):
 
     def test_background_click(self):
         self.assertTrue(self.driver.goto(self.root + "/counter").ok)
-        with Notepad(self.folder) as editor:
+        with self.editor as editor:
+            self.assertNotEqual(win32gui.GetWindowPlacement(editor.hwnd)[1], win32con.SW_SHOWMAXIMIZED)
             point = editor.park_cursor()
             self.assertTrue(self.driver.click("Increment").ok)
             self.assertEqual(self.page.locator("#count").inner_text(), "1")
@@ -416,8 +464,9 @@ class ParallelBrowser(unittest.TestCase):
     def test_occupancy(self):
         self.assertTrue(self.driver.goto(self.root + "/counter").ok)
         letters = "toucan" * 7
-        with Notepad(self.folder) as editor:
+        with self.editor as editor:
             editor.park_cursor()
+            editor.shortcut("A")
             start = time.monotonic()
             failures = []
             def type_into_notepad():
@@ -483,7 +532,7 @@ class ParallelBrowser(unittest.TestCase):
             clicked = self.driver.click("Play")
             self.assertTrue(clicked.ok, clicked)
             self.assertTrue(self.driver.assert_progress(5).ok)
-            with Notepad(self.folder) as editor:
+            with self.editor as editor:
                 editor.park_cursor()
                 frame.wait_for_function("Number(document.querySelector('#blurs').textContent) > 0 && document.querySelector('video').paused", timeout=5000)
                 recovered = verify_after_play(self.driver, "Play", 5)

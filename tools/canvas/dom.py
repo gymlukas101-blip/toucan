@@ -98,8 +98,14 @@ class CanvasDOM:
         from tools.canvas.tabs import cleanup
         if not self.cleanup_enabled:
             return
+        def count_tabs():
+            session = self.browser.new_browser_cdp_session()
+            try:
+                return sum(t["type"] == "page" for t in session.send("Target.getTargets")["targetInfos"])
+            finally:
+                session.detach()
         cleanup(self.context, queue, self.ended_targets, self.log, driven=self.driven_page,
-                canvas_pages=self._verification_pages.values())
+                canvas_pages=self._verification_pages.values(), count_tabs=count_tabs)
 
     def _page(self, path, *, courses=False):
         for page in self.context.pages:

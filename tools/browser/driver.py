@@ -428,7 +428,7 @@ class Driver:
             element.dispose()
 
     def coordinate_click(self, element, name):
-        element.scroll_into_view_if_needed(timeout=2000)
+        element.evaluate("e=>e.scrollIntoView({behavior:'instant',block:'nearest',inline:'nearest'})")
         # Verify the top-level hit and each nested frame hit, including open shadow roots.
         box = element.bounding_box()
         if not box:
@@ -503,7 +503,8 @@ class Driver:
         self.check_player()
         self._next_viewport = time.monotonic() + 10
         try:
-            if background_recovery:
+            native_attempt = re.fullmatch(r"/courses/\d+/quizzes/\d+/take/?", urlsplit(self.page.url).path)
+            if background_recovery or (native_attempt and self.page.evaluate("document.hidden")):
                 # A hidden tab can finish reloading without repainting its window surface.
                 # Ask Chrome to rasterize just this tab's visible viewport offscreen.
                 session = self.page.context.new_cdp_session(self.page)

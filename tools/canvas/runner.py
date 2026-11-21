@@ -422,6 +422,7 @@ class CourseItem:
                 if content.count():
                     surface = content
             controls = controls_on(surface, course=True)
+            canvas_chrome = not player and (frame == driver.page.main_frame or web_origin(frame.url) == ORIGIN)
             for control in controls:
                 name, role = control["name"], control["role"]
                 if control["disabled"] or role not in {"link", "button", "radio", "checkbox", "tab", "menuitem"}:
@@ -434,7 +435,7 @@ class CourseItem:
                     prompt = ""
                 if (not name or BLOCKED.search(display) or BLOCKED.search(name)
                         or re.search(r"\b(?:complete all items|delete|withdraw)\b", display, re.I)
-                        or (not player and re.match(r"^(?:next|previous|back|modules?)\b", display, re.I)
+                        or (canvas_chrome and re.match(r"^(?:next|previous|back|modules?)\b", display, re.I)
                             and not (self.item.get("requirement") == "must_submit" and control["inForm"]
                                      and re.fullmatch(r"next(?: question| page)?", display, re.I)))):
                     continue
@@ -461,6 +462,16 @@ class CourseItem:
                               "question": control["question"], "checked": control.get("checked", False),
                               "toggle": control.get("toggle", False),
                               "is_answer": bool(prompt) or role in {"radio", "checkbox"}})
+        if (self.item.get("course_id") == "532394" and normalized(self.item["title"])=="decisions"
+                and not self.item.get("intro_video_started")):
+            play = [s for s in steps if s["control_text"].casefold()=="play video" and
+                    urlsplit(s["locator"]["frame_url"]).hostname=="wisc.prevent.zone"]
+            if len(play)==1:
+                if driver.media_advancing():
+                    self.item["intro_video_started"] = True
+                    self.persist()
+                else:
+                    return [{**play[0], "selection_rule":"L11", "program_intro":True}]
         if self.item.get("requirement") == "must_submit":
             return self.survey_steps(steps)
         personal_groups = {}

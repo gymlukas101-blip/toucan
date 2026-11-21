@@ -30,7 +30,7 @@ def topic_for(question):
 
 
 def personal_question(question):
-    return (bool(re.search(r"\b(?:your|yourself|you|my|i am|i feel|i have)\b", question, re.I))
+    return (bool(re.search(r"\b(?:your|yourself|you|my|myself|i)\b", question, re.I))
             and not re.search(r"\b(?:scenario|suppose|imagine|should|correct|most effective|best (?:way|response)|"
                               r"if (?:a|your|someone)|how (?:could|would) you help|ways? you can help|"
                               r"(?:can|could) you (?:use|identify|do to help))\b", question, re.I))
@@ -46,6 +46,11 @@ def resolve_personal(question, options, facts, previous=(), *, free_text=False, 
     def match(pattern):
         return next((s for key, s in labels.items() if re.search(pattern, key)), None)
     if free_text:
+        if re.search(r"how .*?alcohol culture.*impacted", question, re.I):
+            impact = next((v for k,v in facts.items() if k=="alcohol culture impact"), "")
+            if clean(impact) == "no":
+                subject = "sense of belonging" if re.search("belong",question,re.I) else "overall experience"
+                return [f"It has not affected my {subject}."]
         if value:
             return [value]
         if re.search(r"belong|experience|satisf", question, re.I):
@@ -75,7 +80,7 @@ def resolve_personal(question, options, facts, previous=(), *, free_text=False, 
     if sensitive and nonbranching and not value and (decline := match(r"prefer not|rather not")):
         return [decline]
     for pattern in (r"^(?:no|never|none|zero|0)(?:$|[ ,.:(-])", r"have never|do not (?:drink|use)|don't (?:drink|use)|"
-                    r"not applicable|none of (?:these|the above)|not (?:a |currently )?(?:member|involved)|not to join"):
+                    r"have not (?:drank|drunk|used|consumed)|not applicable|none of (?:these|the above)|not (?:a |currently )?(?:member|involved)|not to join"):
         choice = match(pattern)
         if choice:
             return [choice]
@@ -108,6 +113,9 @@ class ProfileAnswers:
 
     def choose(self, question, options, **kwargs):
         facts, answers = self.read()
+        for other, values in answers.items():
+            if "has the alcohol culture impacted" in other and values:
+                facts["alcohol culture impact"] = values[0]
         topic = topic_for(question)
         if topic and topic not in facts:
             for other, values in reversed(answers.items()):

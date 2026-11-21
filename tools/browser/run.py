@@ -484,7 +484,7 @@ def _run_loop(task, driver, transcript_path, capture, *, course_item=None):
                                                          task["actions"][0].get("selection_rule"))
             if preference:
                 choice = task["actions"][0]
-                decision = dict(action="click", target=choice["target"], text="", basis="domain",
+                decision = dict(action=choice["action"], target=choice["target"], text="", basis="domain",
                                 rule_used=choice.get("selection_rule") or "L11")
             elif fast is not None:
                 decision = dict(action=fast["action"], target=fast["target"], text=fast.get("text", ""),
@@ -589,6 +589,11 @@ def _run_loop(task, driver, transcript_path, capture, *, course_item=None):
             result = dispatch(driver, action, step, retry_play=fast is None)
         if quiz_submit and result.ok:
             course_item.record_submit(driver, dispatched=True)
+        if course_item and result.ok and step.get("program_intro"):
+            course_item.item["intro_video_started"] = True
+            course_item.persist()
+            driver.log.write("intro-playhead", course_item.item["title"], "ok", 0, rule_used="L11",
+                             detail="The introduction's media playhead advanced.")
         if step.get("is_answer") and result.ok:
             if course_item:
                 course_item.answered(step)

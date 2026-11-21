@@ -19,9 +19,9 @@ def first_navigation(page):
         session.detach()
 
 
-def cleanup(context, queue, ended_targets, log, *, driven=None, canvas_pages=()):
+def cleanup(context, queue, ended_targets, log, *, driven=None, canvas_pages=(), count_tabs=None):
     pages = list(context.pages)
-    before = len(pages)
+    before = count_tabs() if count_tabs else len(pages)
     if any(i["status"] == "running" for i in queue["items"]):
         log.write("tab-count", "profile", "ok", 0, tabs_before=before, tabs_after=before,
                   detail=f"Before {before}, after {before}. Queue mid-item.")
@@ -68,5 +68,5 @@ def cleanup(context, queue, ended_targets, log, *, driven=None, canvas_pages=())
             log.write("tab-closed", urlsplit(address).hostname or "", "ok", 0, rule_used="L14")
         except Error:
             continue
-    after = len(context.pages)
+    after = count_tabs() if count_tabs else len(context.pages)
     log.write("tab-count", "profile", "ok", 0, tabs_before=before, tabs_after=after, detail=f"Before {before}, after {after}.")

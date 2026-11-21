@@ -8,7 +8,7 @@ from urllib.parse import urlsplit
 from playwright.sync_api import Error
 
 from tools.browser.driver import Outcome
-from tools.canvas.profile import MULTIPLE, ProfileAnswers, personal_question
+from tools.canvas.profile import ProfileAnswers, clean, personal_question
 
 
 ATTEMPT = re.compile(r"(/courses/(\d+)/quizzes/\d+)/take/?$")
@@ -81,7 +81,7 @@ def fill_block(block, question, choose, before_action, driver, *, nonbranching=F
                 label = handle.evaluate_handle("e=>[...e.labels||[]].find(l=>l.checkVisibility())||e").as_element()
                 try:
                     try:
-                        label.click(timeout=1800)
+                        label.evaluate("e=>e.click()")
                     except Error:
                         if control.is_checked() == desired:
                             continue
@@ -149,10 +149,19 @@ def run_quiz(driver, worker, capture, transcript, *, profile=None, decide_labels
         if not title.count():
             raise ValueError("A visible Canvas question has no readable prompt.")
         question = " ".join(title.inner_text().split())
-        if not rendered_fields(block) and block.evaluate("e=>e.matches('.text_only_question') || !!e.querySelector('.text_only_question')"):
+        fields = rendered_fields(block)
+        if not fields and block.evaluate("e=>e.matches('.text_only_question') || !!e.querySelector('.text_only_question')"):
             index += 1
             continue
-        block.scroll_into_view_if_needed()
+        if fields and all(f["type"] in {"radio", "checkbox"} for f in fields):
+            recorded = profile.read()[1].get(clean(question))
+            checked = [f["text"] for f in fields if f["checked"]]
+            if recorded and sorted(checked) == sorted(recorded):
+                driver.log.write("resume-answer", question, "ok", 0, rule_used="L16",
+                                 detail="The existing response matches the checked options.")
+                index += 1
+                continue
+        block.evaluate("e=>e.scrollIntoView({behavior:'instant',block:'center'})")
         observe()
         observed_at = time.monotonic()
         first_action = True
@@ -178,7 +187,7 @@ def run_quiz(driver, worker, capture, transcript, *, profile=None, decide_labels
             dialog.dismiss()
     page.on("dialog", confirm)
     try:
-        submit.click(timeout=5000)
+        submit.evaluate("e=>e.click()")
         worker.record_submit(driver, dispatched=True)
         deadline = time.monotonic()+20
         while time.monotonic() < deadline:

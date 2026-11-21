@@ -98,7 +98,9 @@ class PlayerChanges(unittest.TestCase):
             <label><input type=radio name=a value=no>No</label></fieldset>
             <fieldset><legend>How many canoes do you own?</legend><select required name=b><option value="">Choose</option>
             <option>3</option><option>0</option></select></fieldset>
-            <fieldset><legend>Describe your overall experience</legend><textarea name=c required></textarea></fieldset>
+            <fieldset><legend>Describe your overall experience</legend><textarea name=c hidden></textarea>
+            <iframe title="Answer editor" srcdoc="<body contenteditable=true
+              oninput='parent.document.querySelector(&quot;textarea&quot;).value=this.innerText'></body>"></iframe></fieldset>
             <button type=submit>Submit Quiz</button></form>"""))
         posted=[]
         def receipt(r):

@@ -92,3 +92,23 @@ Use T0 for a purely mechanical action with an identified target. Use T1 to
 read text, match an option to transcript.md, or find an unnamed control. Use
 T2 for an ambiguous question, a graded item worth real points, or recovery
 after two failures. Note what would escalate the decision, then act.
+
+## Memory recall
+
+- On the first turn of an assignment, load memory/courses/<course>.md if it
+  exists. Cap the injected text at 2000 characters.
+- Never inject memory/inferences.md unless asked.
+- Append new durable facts to the course file as you learn them, using the
+  format in memory/README.md. src is transcript, screenshot, or domain.
+- Record control locations and quiz shape, not individual answers. Answers
+  belong in report.md.
+- If a new fact contradicts an existing one, append a "may replace" hint; do
+  not refuse.
+
+Keep whole fact lines within the recall limit. Put a "may replace" hint in
+the fact text before its metadata. When a correction is confirmed, move the
+old line to memory/superseded.md and exclude it from future recall.
+
+Read LESSONS.md before each run. After the run, run tools/collect_lessons.py
+on its run.jsonl and compare candidates with report.md. Add, correct, or
+retire a lesson in LESSONS.md when the evidence warrants it.

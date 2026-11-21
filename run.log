@@ -1,0 +1,313 @@
+2026-11-20 17:10:29 -06:00 | Start Module 2 | https://canvas.wisc.edu/courses/532511/assignments/3108978?module_item_id=9791075
+2026-11-20 17:10:30 -06:00 | Set AC display timeout to 0 | powercfg exit 0
+2026-11-20 17:10:30 -06:00 | Set AC standby timeout to 0 | powercfg exit 0
+2026-11-20 17:11:18 −06:00 | Capture assignment and transcribe its instructions | 001-assignment-expired.jpg; title and 100 points recorded in notes.md. Canvas reports the tool session has expired before launch.
+2026-11-20 17:11:31 −06:00 | Refresh the Canvas assignment before launch | 002-assignment-ready.jpg; launch button visible, enabled=true
+2026-11-20 17:11:44 −06:00 | Click Load Module 2: U Gotta Know When It's Wrong in a new window | Clicked once on the refreshed Canvas page.
+2026-11-20 17:11:57 −06:00 | Inspect the newly opened player | 003-player-open.jpg; Chrome opened iad.scorm.canvaslms.com with title U Got This! | Module 2: U Gotta Know When It's Wrong
+2026-11-20 17:12:09 −06:00 | Send F11 to the launched player | 004-fullscreen-check.jpg; viewport 1521x770 to 1521x770; Startup state observed.
+2026-11-20 17:12:43 −06:00 | Verify full screen on the player window | 005-player-fullscreen.jpg; Chrome window state maximized to fullscreen; Start Course present.
+2026-11-20 17:12:53 −06:00 | Scroll to the embedded interactive video | 006-start-control.jpg; inspected the player controls in the lesson.
+2026-11-20 17:13:14 −06:00 | Coordinate click embedded Start Course overlay at 758,198 | Post-click screenshot 007-activate-player.jpg
+2026-11-20 17:13:19 −06:00 | Verify the activation click | Welcome slide and its CC button appeared; no reset or resume prompt.
+2026-11-20 17:13:24 −06:00 | Coordinate click CC menu at 226,483 | Post-click screenshot 008-captions-menu.jpg
+2026-11-20 17:13:29 −06:00 | Verify CC menu click | English, Spanish and Off appeared; Off had the check mark.
+2026-11-20 17:13:35 −06:00 | Coordinate click English captions at 262,355 | Post-click screenshot 009-english-captions.jpg
+2026-11-20 17:13:41 −06:00 | Verify English captions selection | The language menu closed after the click on English; checking accessibility options before playback.
+2026-11-20 17:13:46 −06:00 | Coordinate click Accessibility Controls at 1054,400 | Post-click screenshot 010-accessibility-options.jpg
+2026-11-20 17:14:03 −06:00 | Verify accessibility dialog opened | It offers manual audio, seekbar and additional controls. The player exposes the captions-language menu in its accessibility tree.
+2026-11-20 17:14:06 −06:00 | Coordinate click Additional Controls in accessibility help at 792,475 | Post-click screenshot 011-additional-controls.jpg
+2026-11-20 17:14:17 −06:00 | Verify Additional Controls help | Help lists Zoom to fit, Accessible text and Keyboard shortcuts; no transcript panel is listed there.
+2026-11-20 17:14:19 −06:00 | Reframe the player dialog | 012-player-dialog-framed.jpg; inspect the Close control and full slide.
+2026-11-20 17:14:31 −06:00 | Coordinate click Close accessibility help at 1301,203 | Post-click screenshot 013-return-to-welcome.jpg
+2026-11-20 17:14:44 −06:00 | Verify Close click | Welcome screen and Start Course button returned.
+2026-11-20 17:14:46 −06:00 | Frame the whole interactive slide | 014-welcome-and-playback-controls.jpg; ready to inspect playback and monitor captions.
+2026-11-20 17:14:57 −06:00 | Inspect caption and transcript availability | English captions are available through the readable built-in CC control. No standalone transcript panel is offered on Welcome or in accessibility help. Start screen is ready.
+2026-11-20 17:15:28 −06:00 | Click Start Course at 756,447 | Started the visible-text reader and clicked the green Start Course button.
+2026-11-20 17:16:10 −06:00 | Verify playback and English captions | 015-start-course-result.jpg; narrator and caption advanced across successive observations. Live caption text is directly readable.
+2026-11-20 17:17:26 −06:00 | Stop at the first in-video checkpoint | 016-first-checkpoint.jpg; question: Every sexual assault has one thing in common: . No recorded caption supports a choice. No answer selected; the two tabs were retained for handoff.
+2026-11-20 17:18:00 -06:00 | Restore monitor-timeout-ac to 15 minutes | Verified=True
+2026-11-20 17:18:00 -06:00 | Restore standby-timeout-ac to 30 minutes | Verified=True
+2026-11-20 17:18:00 -06:00 | Finish handoff report | Score unavailable; completion unverified; Canvas Next was not used.
+2026-11-20 17:38:47 -06:00 | Resume | User supplied the checkpoint answer and authorized transcript or domain as the basis for subsequent answers.
+2026-11-20 17:38:47 -06:00 | Set AC display timeout to 0 | powercfg exit 0
+2026-11-20 17:38:47 -06:00 | Set AC standby timeout to 0 | powercfg exit 0
+2026-11-20 17:42:18 −06:00 | Resume at the retained checkpoint | 017-resume-player.jpg; exact launched tab verified in foreground. Windows accessibility can read the slide.
+2026-11-20 17:49:11 CT | Answer first in-video checkpoint | LACK OF CONSENT | basis: domain (user supplied the defining distinction). The player advanced to “Lack of Consent” and explicitly confirmed the answer.
+2026-11-20 17:51:33 CT | Click Continue on the confirmed Lack of Consent feedback | Direct accessibility sampling started before the click.
+2026-11-20 17:51:54 CT | Observe slide | Lack of Consent | first direct read [35:47]
+2026-11-20 17:51:54 CT | Observe slide | Sexual Assault versus Rape | first direct read [36:03]
+2026-11-20 17:51:54 CT | Observe slide | Your School's Definition: Sexual Assault | first direct read [36:26]
+2026-11-20 17:53:47 CT | Live caption reader | Slide Your School's Definition: Sexual Assault [38:19]
+2026-11-20 17:55:40 CT | Read caption panel from slide entry | Your School's Definition: Sexual Assault [40:12]
+2026-11-20 17:56:20 CT | Observe Your School's Definition: Sexual Assault | R-1795218980309-definition-checkpoint.jpg; frame changed; 0 captured cues; playing=false
+2026-11-20 17:57:26 CT | Pre-action screenshot R-1795219046128-definition-ready.jpg | Your School's Definition: Sexual Assault; frame changed
+2026-11-20 17:57:30 CT | Coordinate click Got It at 1068,758 | Caption monitor resumed immediately after input.
+2026-11-20 17:57:30 CT | Read caption panel from slide entry | Do Your Classmates Know? [42:02]
+2026-11-20 17:57:40 CT | Pre-action screenshot R-1795219060337-after-got-it.jpg | Do Your Classmates Know?; frame changed
+2026-11-20 17:57:50 CT | Answer checkpoint | Do you think most of your classmates knew what sexual assault was already? | No | domain | An estimate for the reflection prompt. Prior familiarity with the full institutional definition varies.
+2026-11-20 17:57:50 CT | Coordinate click No on the classmates reflection at 301,621 | Caption monitor resumed immediately after input.
+2026-11-20 17:57:54 CT | Read caption panel from slide entry | Do They Think It's Wrong? [42:26]
+2026-11-20 17:57:57 CT | Pre-action screenshot R-1795219077554-after-classmates-response.jpg | Do They Think It's Wrong?; frame changed
+2026-11-20 17:58:07 CT | Pre-action screenshot R-1795219087837-classmates-wrong-prompt.jpg | Do They Think It's Wrong?; frame changed
+2026-11-20 17:58:12 CT | Answer checkpoint | Do you think most of them know sexual assault is wrong? | Yes | domain | The question asks for an estimate about awareness of the norm.
+2026-11-20 17:58:12 CT | Coordinate click Yes on whether classmates know it is wrong at 297,564 | Caption monitor resumed immediately after input.
+2026-11-20 17:58:13 CT | Read caption panel from slide entry | Sexual Assault Is Bad? [42:45]
+2026-11-20 17:58:18 CT | Pre-action screenshot R-1795219098179-after-wrong-reflection.jpg | Sexual Assault Is Bad?; frame changed
+2026-11-20 17:58:34 CT | Read caption panel from slide entry | Your School's Definition: Consent [43:06]
+2026-11-20 17:58:38 CT | Pre-action screenshot R-1795219118433-video-progress.jpg | Your School's Definition: Consent; frame changed
+2026-11-20 17:58:48 CT | Pre-action screenshot R-1795219128729-consent-definition-control.jpg | Your School's Definition: Consent; frame changed
+2026-11-20 17:58:53 CT | Coordinate click Got It on the consent definition at 1024,775 | Caption monitor resumed immediately after input.
+2026-11-20 17:58:54 CT | Read caption panel from slide entry | Not Just a Bad Hookup [43:26]
+2026-11-20 17:58:59 CT | Pre-action screenshot R-1795219139152-after-consent-definition.jpg | Not Just a Bad Hookup; frame changed
+2026-11-20 17:59:09 CT | Pre-action screenshot R-1795219149945-playback.jpg | Not Just a Bad Hookup; frame changed
+2026-11-20 17:59:20 CT | Answer checkpoint | Have you ever heard of a survivor being told it was just a bad hookup? | Yeah, I’ve heard of that. | [43:30]–[43:37] | The narrator just described this response, including “people try to convince” and “them it was just bad sex”.
+2026-11-20 17:59:21 CT | Coordinate click Heard of this example at 465,559 | Caption monitor resumed immediately after input.
+2026-11-20 17:59:21 CT | Pre-action screenshot R-1795219161989-after-bad-hookup-reflection.jpg | Not Just a Bad Hookup; frame changed
+2026-11-20 17:59:28 CT | Verify the heard-of-it response | The chosen option remained bright, the alternative dimmed, and spoken feedback began.
+2026-11-20 17:59:28 CT | Read caption panel from slide entry | Bad Sex versus Sexual Assault [44:00]
+2026-11-20 17:59:43 CT | Pre-action screenshot R-1795219183523-playback.jpg | Bad Sex versus Sexual Assault; frame changed
+2026-11-20 17:59:48 CT | Coordinate click Continue after the comparison at 1216,773 | Caption monitor resumed immediately after input.
+2026-11-20 17:59:49 CT | Read caption panel from slide entry | Scenario [44:21]
+2026-11-20 17:59:53 CT | Pre-action screenshot R-1795219193847-comparison-continued.jpg | Scenario; frame changed
+2026-11-20 18:00:14 CT | Pre-action screenshot R-1795219214259-playback.jpg | Scenario; frame changed
+2026-11-20 18:00:24 CT | Pre-action screenshot R-1795219224533-playback.jpg | Scenario; frame changed
+2026-11-20 18:02:34 CT | Pre-action screenshot R-1795219354871-scenario-checkpoint.jpg | Scenario; frame unchanged
+2026-11-20 18:02:39 CT | Coordinate click Continue after the consensual scenario at 1203,785 | Caption monitor resumed immediately after input.
+2026-11-20 18:02:40 CT | Read caption panel from slide entry | Bad Sex versus Sexual Assault [47:12]
+2026-11-20 18:02:45 CT | Pre-action screenshot R-1795219365351-scenario-continue.jpg | Bad Sex versus Sexual Assault; frame changed
+2026-11-20 18:03:07 CT | Pre-action screenshot R-1795219387263-playback.jpg | Bad Sex versus Sexual Assault; frame changed
+2026-11-20 18:03:20 CT | Pre-action screenshot R-1795219400060-playback.jpg | Bad Sex versus Sexual Assault; frame changed
+2026-11-20 18:03:25 CT | Coordinate click Continue after how to distinguish assault at 1184,786 | Caption monitor resumed immediately after input.
+2026-11-20 18:03:27 CT | Read caption panel from slide entry | Consensual or Not Consensual [47:59]
+2026-11-20 18:03:30 CT | Pre-action screenshot R-1795219410401-verified-click.jpg | Consensual or Not Consensual; frame changed
+2026-11-20 18:03:41 CT | Pre-action screenshot R-1795219421760-playback.jpg | Consensual or Not Consensual; frame changed
+2026-11-20 18:03:44 CT | Coordinate click Open scenario card 1 at 416,346 | Caption monitor resumed immediately after input.
+2026-11-20 18:03:52 CT | Pre-action screenshot R-1795219432056-verified-click.jpg | Consensual or Not Consensual; frame changed
+2026-11-20 18:03:57 CT | Answer checkpoint | Scenario card 1 — I said no, but I don't think they heard. | Not Consensual | [47:17]–[47:22] | They can freely choose to leave or stop at any time. This person said no.
+2026-11-20 18:03:58 CT | Coordinate click Card 1: Not Consensual at 258,368 | Caption monitor resumed immediately after input.
+2026-11-20 18:04:02 CT | Pre-action screenshot R-1795219442316-verified-click.jpg | Consensual or Not Consensual; frame changed
+2026-11-20 18:04:05 CT | Coordinate click Open scenario card 2 at 802,344 | Caption monitor resumed immediately after input.
+2026-11-20 18:04:12 CT | Pre-action screenshot R-1795219452663-verified-click.jpg | Consensual or Not Consensual; frame changed
+2026-11-20 18:04:16 CT | Answer checkpoint | Scenario card 2 — Agreed to sex and learned afterward that a recording was made without their knowledge. | Not Consensual | domain | Consent to sex did not extend to making a recording.
+2026-11-20 18:04:16 CT | Coordinate click Card 2: Not Consensual at 628,366 | Caption monitor resumed immediately after input.
+2026-11-20 18:04:23 CT | Pre-action screenshot R-1795219463044-verified-click.jpg | Consensual or Not Consensual; frame changed
+2026-11-20 18:04:26 CT | Coordinate click Open scenario card 3 at 1166,350 | Caption monitor resumed immediately after input.
+2026-11-20 18:04:33 CT | Pre-action screenshot R-1795219473306-verified-click.jpg | Consensual or Not Consensual; frame changed
+2026-11-20 18:04:37 CT | Answer checkpoint | Scenario card 3 — It was fun but hooking up really messed up our friendship. | Consensual | [44:36]–[44:47] | The earlier scenario distinguishes a freely chosen hookup from its disappointing aftermath.
+2026-11-20 18:04:37 CT | Coordinate click Card 3: Consensual at 994,320 | Caption monitor resumed immediately after input.
+2026-11-20 18:04:43 CT | Pre-action screenshot R-1795219483611-verified-click.jpg | Consensual or Not Consensual; frame changed
+2026-11-20 18:04:46 CT | Coordinate click Open scenario card 4 at 423,662 | Caption monitor resumed immediately after input.
+2026-11-20 18:04:53 CT | Pre-action screenshot R-1795219493983-verified-click.jpg | Consensual or Not Consensual; frame changed
+2026-11-20 18:04:57 CT | Answer checkpoint | Scenario card 4 — He describes being drunk and physically overpowered. | Not Consensual | [47:17]–[47:22] | Being overpowered took away his choice.
+2026-11-20 18:04:57 CT | Coordinate click Card 4: Not Consensual at 261,686 | Caption monitor resumed immediately after input.
+2026-11-20 18:05:04 CT | Pre-action screenshot R-1795219504306-verified-click.jpg | Consensual or Not Consensual; frame changed
+2026-11-20 18:05:07 CT | Coordinate click Open scenario card 5 at 802,668 | Caption monitor resumed immediately after input.
+2026-11-20 18:05:14 CT | Pre-action screenshot R-1795219514660-verified-click.jpg | Consensual or Not Consensual; frame changed
+2026-11-20 18:05:18 CT | Answer checkpoint | Scenario card 5 — If I didn’t do it, he said he’d out me to everyone. | Not Consensual | [47:17]–[47:22] | A threat prevents a free choice.
+2026-11-20 18:05:18 CT | Coordinate click Card 5: Not Consensual at 627,685 | Caption monitor resumed immediately after input.
+2026-11-20 18:05:25 CT | Pre-action screenshot R-1795219525014-verified-click.jpg | Consensual or Not Consensual; frame changed
+2026-11-20 18:05:29 CT | Coordinate click Open scenario card 6 at 1165,662 | Caption monitor resumed immediately after input.
+2026-11-20 18:05:35 CT | Pre-action screenshot R-1795219535337-verified-click.jpg | Consensual or Not Consensual; frame changed
+2026-11-20 18:05:39 CT | Answer checkpoint | Scenario card 6 — She took it further than I wanted and I froze. | Not Consensual | [47:17]–[47:22] | The speaker did not agree to going further.
+2026-11-20 18:05:39 CT | Coordinate click Card 6: Not Consensual at 998,684 | Caption monitor resumed immediately after input.
+2026-11-20 18:05:45 CT | Pre-action screenshot R-1795219545708-verified-click.jpg | Consensual or Not Consensual; frame changed
+2026-11-20 18:05:48 CT | Coordinate click Submit the six scenario classifications at 854,795 | Caption monitor resumed immediately after input.
+2026-11-20 18:05:50 CT | Read caption panel from slide entry | Feedback [50:22]
+2026-11-20 18:05:56 CT | Pre-action screenshot R-1795219556053-verified-click.jpg | Feedback; frame changed
+2026-11-20 18:06:03 CT | Submitted the six-card exercise | The course identified card 3 as the sole consensual scenario, matching all six selections.
+2026-11-20 18:06:16 CT | Pre-action screenshot R-1795219576315-playback.jpg | Feedback; frame changed
+2026-11-20 18:06:36 CT | Pre-action screenshot R-1795219596611-playback.jpg | Feedback; frame changed
+2026-11-20 18:06:56 CT | Pre-action screenshot R-1795219616949-playback.jpg | Feedback; frame changed
+2026-11-20 18:07:17 CT | Pre-action screenshot R-1795219637229-playback.jpg | Feedback; frame changed
+2026-11-20 18:07:37 CT | Pre-action screenshot R-1795219657500-playback.jpg | Feedback; frame changed
+2026-11-20 18:07:47 CT | Pre-action screenshot R-1795219667854-playback.jpg | Feedback; frame changed
+2026-11-20 18:07:57 CT | Answer checkpoint | What is the best way to be more certain you have consent? | All of the above | [51:44]–[51:47], [52:04]–[52:08] | The initiator checks that the other person wants to participate, and consent must be active and ongoing. Ask, attend to body language, and respond throughout.
+2026-11-20 18:07:58 CT | Coordinate click All of the above at 420,725 | Caption monitor resumed immediately after input.
+2026-11-20 18:08:00 CT | Pre-action screenshot R-1795219680477-verified-click.jpg | Feedback; frame changed
+2026-11-20 18:08:06 CT | Read caption panel from slide entry | What If You Know the Person? [52:38]
+2026-11-20 18:08:11 CT | Pre-action screenshot R-1795219691264-playback.jpg | What If You Know the Person?; frame changed
+2026-11-20 18:08:15 CT | Answer checkpoint | If you know the person really well, do the same consent rules apply? | Yes | [51:53]–[52:04] | Consent is always required, and previous consent does not imply consent for increased or recurring contact.
+2026-11-20 18:08:15 CT | Coordinate click Yes at 354,480 | Caption monitor resumed immediately after input.
+2026-11-20 18:08:19 CT | Read caption panel from slide entry | Ask [52:51]
+2026-11-20 18:08:21 CT | Pre-action screenshot R-1795219701752-verified-click.jpg | Ask; frame changed
+2026-11-20 18:08:42 CT | Pre-action screenshot R-1795219722333-playback.jpg | Ask; frame changed
+2026-11-20 18:08:52 CT | Pre-action screenshot R-1795219732733-playback.jpg | Ask; frame unchanged
+2026-11-20 18:08:56 CT | Coordinate click Continue from Ask at 1206,739 | Caption monitor resumed immediately after input.
+2026-11-20 18:08:57 CT | Read caption panel from slide entry | Think Of It Like This [53:29]
+2026-11-20 18:09:03 CT | Pre-action screenshot R-1795219743189-verified-click.jpg | Think Of It Like This; frame changed
+2026-11-20 18:09:23 CT | Pre-action screenshot R-1795219763491-playback.jpg | Think Of It Like This; frame changed
+2026-11-20 18:09:44 CT | Pre-action screenshot R-1795219784363-playback.jpg | Think Of It Like This; frame changed
+2026-11-20 18:09:59 CT | Pre-action screenshot R-1795219799149-playback.jpg | Think Of It Like This; frame changed
+2026-11-20 18:10:07 CT | Answer checkpoint | Does the bistro example sound consensual? | Definitely. | [53:54], [54:09]–[54:22] | The server asks what the customer wants, clarifies a response, and respects “No, thank you.”
+2026-11-20 18:10:07 CT | Coordinate click Definitely. at 367,592 | Caption monitor resumed immediately after input.
+2026-11-20 18:10:10 CT | Read caption panel from slide entry | The Point Is [54:42]
+2026-11-20 18:10:10 CT | Pre-action screenshot R-1795219810796-verified-click.jpg | The Point Is; frame changed
+2026-11-20 18:10:31 CT | Pre-action screenshot R-1795219831075-playback.jpg | The Point Is; frame changed
+2026-11-20 18:10:41 CT | Pre-action screenshot R-1795219841552-playback.jpg | The Point Is; frame changed
+2026-11-20 18:10:49 CT | Answer checkpoint | Sex with someone who has been drinking: cool, not cool, or depends? | Depends | [51:53]–[51:55] | The person must be able to give fully informed consent. The prompt states only that they drank, without describing their capacity.
+2026-11-20 18:10:49 CT | Coordinate click Depends at 344,640 | Caption monitor resumed immediately after input.
+2026-11-20 18:10:51 CT | Pre-action screenshot R-1795219851908-verified-click.jpg | The Point Is; frame changed
+2026-11-20 18:10:58 CT | Read caption panel from slide entry | Sex With Someone Who Is Drunk [55:30]
+2026-11-20 18:11:04 CT | Pre-action screenshot R-1795219864333-playback.jpg | Sex With Someone Who Is Drunk; frame changed
+2026-11-20 18:11:09 CT | Answer checkpoint | What about sex with someone who is incapacitated drunk? | That’s rape. | [51:35]–[51:38], [51:53]–[51:55] | Incapacitation prevents the person from giving the fully informed consent the course requires. Silence does not communicate consent.
+2026-11-20 18:11:09 CT | Coordinate click That’s rape. at 344,361 | Caption monitor resumed immediately after input.
+2026-11-20 18:11:11 CT | Read caption panel from slide entry | Your School's Definition: Incapacitation [55:43]
+2026-11-20 18:11:14 CT | Pre-action screenshot R-1795219874734-verified-click.jpg | Your School's Definition: Incapacitation; frame changed
+2026-11-20 18:11:25 CT | Pre-action screenshot R-1795219885104-playback.jpg | Your School's Definition: Incapacitation; frame changed
+2026-11-20 18:11:29 CT | Coordinate click Continue after the school’s definition of incapacitation at 1087,770 | Caption monitor resumed immediately after input.
+2026-11-20 18:11:30 CT | Read caption panel from slide entry | Know Your Limits [56:02]
+2026-11-20 18:11:35 CT | Pre-action screenshot R-1795219895483-verified-click.jpg | Know Your Limits; frame changed
+2026-11-20 18:11:55 CT | Pre-action screenshot R-1795219915753-playback.jpg | Know Your Limits; frame changed
+2026-11-20 18:12:16 CT | Pre-action screenshot R-1795219936931-playback.jpg | Know Your Limits; frame changed
+2026-11-20 18:12:27 CT | Pre-action screenshot R-1795219947329-playback.jpg | Know Your Limits; frame changed
+2026-11-20 18:12:31 CT | Answer checkpoint | Is the guidance clear about holding off when someone has been drinking? | Yes | [56:38]–[56:48] | The narrator explains that impairment can be hard to recognize and advises holding off.
+2026-11-20 18:12:31 CT | Coordinate click Yes at 341,552 | Caption monitor resumed immediately after input.
+2026-11-20 18:12:33 CT | Read caption panel from slide entry | Effect of Bad Hookup versus Sexual Assault [57:05]
+2026-11-20 18:12:37 CT | Pre-action screenshot R-1795219957771-verified-click.jpg | Effect of Bad Hookup versus Sexual Assault; frame changed
+2026-11-20 18:12:48 CT | Pre-action screenshot R-1795219968275-playback.jpg | Effect of Bad Hookup versus Sexual Assault; frame changed
+2026-11-20 18:12:52 CT | Answer checkpoint | Which experience has a greater long-term effect on a person? | Sexual assault | [47:38]–[47:43] | The narrator describes sexual assault as violating and traumatic.
+2026-11-20 18:12:52 CT | Coordinate click Sexual assault at 421,570 | Caption monitor resumed immediately after input.
+2026-11-20 18:12:58 CT | Pre-action screenshot R-1795219978648-verified-click.jpg | Effect of Bad Hookup versus Sexual Assault; frame changed
+2026-11-20 18:13:15 CT | Read caption panel from slide entry | Impact of Sexual Violence [57:47]
+2026-11-20 18:13:18 CT | Pre-action screenshot R-1795219998905-playback.jpg | Impact of Sexual Violence; frame changed
+2026-11-20 18:13:39 CT | Pre-action screenshot R-1795220019136-playback.jpg | Impact of Sexual Violence; frame changed
+2026-11-20 18:13:59 CT | Pre-action screenshot R-1795220039372-playback.jpg | Impact of Sexual Violence; frame changed
+2026-11-20 18:14:12 CT | Pre-action screenshot R-1795220052259-playback.jpg | Impact of Sexual Violence; frame changed
+2026-11-20 18:14:21 CT | Answer checkpoint | Are we good on the difference in impact? | We’re good | [58:34]–[58:40] | The narrator explains that the impact of rape is typically very different from a bad hookup.
+2026-11-20 18:14:21 CT | Coordinate click We’re good at 410,541 | Caption monitor resumed immediately after input.
+2026-11-20 18:14:24 CT | Read caption panel from slide entry | Complicated Relationships [58:56]
+2026-11-20 18:14:25 CT | Pre-action screenshot R-1795220065113-verified-click.jpg | Complicated Relationships; frame changed
+2026-11-20 18:14:45 CT | Pre-action screenshot R-1795220085519-playback.jpg | Complicated Relationships; frame changed
+2026-11-20 18:15:05 CT | Pre-action screenshot R-1795220105781-playback.jpg | Complicated Relationships; frame changed
+2026-11-20 18:15:26 CT | Pre-action screenshot R-1795220126024-playback.jpg | Complicated Relationships; frame changed
+2026-11-20 18:15:46 CT | Pre-action screenshot R-1795220146350-playback.jpg | Complicated Relationships; frame changed
+2026-11-20 18:15:57 CT | Pre-action screenshot R-1795220157566-playback.jpg | Complicated Relationships; frame changed
+2026-11-20 18:16:02 CT | Answer checkpoint | Have you ever had a friend who was in a complicated relationship? | What do you mean by complicated? | domain | This option asks the course to define its term and requires no assumptions about the learner’s friends.
+2026-11-20 18:16:02 CT | Coordinate click What do you mean by complicated? at 555,588 | Caption monitor resumed immediately after input.
+2026-11-20 18:16:07 CT | Pre-action screenshot R-1795220167984-verified-click.jpg | Complicated Relationships; frame changed
+2026-11-20 18:16:11 CT | Read caption panel from slide entry | Why Is It Complicated? [60:43]
+2026-11-20 18:16:28 CT | Pre-action screenshot R-1795220188457-playback.jpg | Why Is It Complicated?; frame changed
+2026-11-20 18:16:38 CT | Pre-action screenshot R-1795220198857-playback.jpg | Why Is It Complicated?; frame changed
+2026-11-20 18:16:42 CT | Coordinate click Continue after the relationship explanation at 1184,763 | Caption monitor resumed immediately after input.
+2026-11-20 18:16:43 CT | Read caption panel from slide entry | Scenario 1: William and Emma [61:15]
+2026-11-20 18:16:49 CT | Pre-action screenshot R-1795220209252-verified-click.jpg | Scenario 1: William and Emma; frame changed
+2026-11-20 18:17:09 CT | Pre-action screenshot R-1795220229631-playback.jpg | Scenario 1: William and Emma; frame changed
+2026-11-20 18:17:29 CT | Pre-action screenshot R-1795220249903-playback.jpg | Scenario 1: William and Emma; frame unchanged
+2026-11-20 18:17:40 CT | Pre-action screenshot R-1795220260350-william-emma-prompt.jpg | Scenario 1: William and Emma; frame changed
+2026-11-20 18:17:45 CT | Answer checkpoint | William slaps Emma during an argument. Abuse or not abuse? | Abuse | [61:24]–[61:29] | The narrator explicitly describes a physical assault.
+2026-11-20 18:17:45 CT | Coordinate click Abuse at 584,775 | Caption monitor resumed immediately after input.
+2026-11-20 18:17:46 CT | Read caption panel from slide entry | Scenario 2: Ava and Emily [62:18]
+2026-11-20 18:17:50 CT | Pre-action screenshot R-1795220270728-verified-click.jpg | Scenario 2: Ava and Emily; frame changed
+2026-11-20 18:18:01 CT | Pre-action screenshot R-1795220281054-ava-emily-prompt.jpg | Scenario 2: Ava and Emily; frame changed
+2026-11-20 18:18:05 CT | Answer checkpoint | Is Ava threatening to out Emily to win an argument abuse? | Abuse | [62:19]–[62:21] | Ava is using a threat to control her partner.
+2026-11-20 18:18:05 CT | Coordinate click Abuse at 564,772 | Caption monitor resumed immediately after input.
+2026-11-20 18:18:06 CT | Read caption panel from slide entry | Scenario 3: Mike and Adam [62:38]
+2026-11-20 18:18:11 CT | Pre-action screenshot R-1795220291405-verified-click.jpg | Scenario 3: Mike and Adam; frame changed
+2026-11-20 18:18:21 CT | Pre-action screenshot R-1795220301729-mike-adam-prompt.jpg | Scenario 3: Mike and Adam; frame changed
+2026-11-20 18:18:26 CT | Answer checkpoint | Mike leaves it to Adam to walk their dog on weekends. Abuse or not abuse? | Not abuse | [62:39]–[62:44] | The described conduct is an unfair division of chores.
+2026-11-20 18:18:27 CT | Coordinate click Not abuse at 888,775 | Caption monitor resumed immediately after input.
+2026-11-20 18:18:28 CT | Read caption panel from slide entry | Scenario 4: Julie and Dan [63:00]
+2026-11-20 18:18:32 CT | Pre-action screenshot R-1795220312048-verified-click.jpg | Scenario 4: Julie and Dan; frame changed
+2026-11-20 18:18:42 CT | Pre-action screenshot R-1795220322386-julie-dan-prompt.jpg | Scenario 4: Julie and Dan; frame changed
+2026-11-20 18:18:46 CT | Answer checkpoint | Is Julie hiding Dan’s powered mobility device abuse? | Abuse | [63:00]–[63:03] | Julie deliberately withholds his means of getting around.
+2026-11-20 18:18:46 CT | Coordinate click Abuse at 570,785 | Caption monitor resumed immediately after input.
+2026-11-20 18:18:47 CT | Read caption panel from slide entry | Scenario 5: Josh and Sophie [63:19]
+2026-11-20 18:18:52 CT | Pre-action screenshot R-1795220332829-verified-click.jpg | Scenario 5: Josh and Sophie; frame changed
+2026-11-20 18:19:03 CT | Pre-action screenshot R-1795220343154-josh-sophie-prompt.jpg | Scenario 5: Josh and Sophie; frame changed
+2026-11-20 18:19:07 CT | Answer checkpoint | Is Josh ending the romantic relationship and expressing that he values Sophie as a friend abuse? | Not abuse | [63:19]–[63:22] | Josh tells Sophie honestly how he feels.
+2026-11-20 18:19:07 CT | Coordinate click Not abuse at 899,775 | Caption monitor resumed immediately after input.
+2026-11-20 18:19:08 CT | Read caption panel from slide entry | Scenario 6: Olivia and Grace [63:40]
+2026-11-20 18:19:13 CT | Pre-action screenshot R-1795220353423-verified-click.jpg | Scenario 6: Olivia and Grace; frame changed
+2026-11-20 18:19:23 CT | Pre-action screenshot R-1795220363812-olivia-grace-prompt.jpg | Scenario 6: Olivia and Grace; frame unchanged
+2026-11-20 18:19:29 CT | Answer checkpoint | Olivia threatens self-harm when Grace wants to leave. Abuse or not abuse? | Abuse | [63:41]–[63:43] | The scenario uses a threat to pressure Grace into staying.
+2026-11-20 18:19:29 CT | Coordinate click Abuse at 571,773 | Caption monitor resumed immediately after input.
+2026-11-20 18:19:30 CT | Read caption panel from slide entry | Scenario 7: Natalie and Sam [64:02]
+2026-11-20 18:19:34 CT | Pre-action screenshot R-1795220374251-verified-click.jpg | Scenario 7: Natalie and Sam; frame changed
+2026-11-20 18:19:44 CT | Pre-action screenshot R-1795220384639-natalie-sam-prompt.jpg | Scenario 7: Natalie and Sam; frame changed
+2026-11-20 18:19:49 CT | Answer checkpoint | Is Natalie’s repeated tracking, calling and anger when Sam does not immediately reply abuse? | Abuse | [64:03]–[64:10] | The scenario describes controlling monitoring and anger about delayed replies.
+2026-11-20 18:19:49 CT | Coordinate click Abuse at 558,782 | Caption monitor resumed immediately after input.
+2026-11-20 18:19:51 CT | Read caption panel from slide entry | How Did You Do? [64:23]
+2026-11-20 18:19:55 CT | Pre-action screenshot R-1795220395037-verified-click.jpg | How Did You Do?; frame changed
+2026-11-20 18:20:15 CT | Pre-action screenshot R-1795220415395-playback.jpg | How Did You Do?; frame changed
+2026-11-20 18:20:35 CT | Pre-action screenshot R-1795220435874-playback.jpg | How Did You Do?; frame changed
+2026-11-20 18:20:56 CT | Pre-action screenshot R-1795220456142-playback.jpg | How Did You Do?; frame changed
+2026-11-20 18:21:06 CT | Pre-action screenshot R-1795220466554-playback.jpg | How Did You Do?; frame changed
+2026-11-20 18:21:11 CT | Coordinate click Continue after the seven relationship scenarios at 1190,765 | Caption monitor resumed immediately after input.
+2026-11-20 18:21:13 CT | Read caption panel from slide entry | Your School's Definition: Relationship Violence [65:45]
+2026-11-20 18:21:16 CT | Pre-action screenshot R-1795220476982-verified-click.jpg | Your School's Definition: Relationship Violence; frame changed
+2026-11-20 18:21:37 CT | Pre-action screenshot R-1795220497268-playback.jpg | Your School's Definition: Relationship Violence; frame changed
+2026-11-20 18:21:47 CT | Pre-action screenshot R-1795220507936-playback.jpg | Your School's Definition: Relationship Violence; frame changed
+2026-11-20 18:21:52 CT | Coordinate click Continue after the relationship-violence definition at 1052,799 | Caption monitor resumed immediately after input.
+2026-11-20 18:21:53 CT | Read caption panel from slide entry | What's The Lesson Here? [66:25]
+2026-11-20 18:21:58 CT | Pre-action screenshot R-1795220518293-verified-click.jpg | What's The Lesson Here?; frame changed
+2026-11-20 18:22:18 CT | Pre-action screenshot R-1795220538583-playback.jpg | What's The Lesson Here?; frame changed
+2026-11-20 18:22:30 CT | Pre-action screenshot R-1795220550752-playback.jpg | What's The Lesson Here?; frame changed
+2026-11-20 18:22:36 CT | Answer checkpoint | Do you recognize the movie trope in which a hero fights to win someone’s love? | Yeah, duh! | domain | This recognizes a familiar fictional trope. The course does not ask for a particular film.
+2026-11-20 18:22:36 CT | Coordinate click Yeah, duh! at 402,555 | Caption monitor resumed immediately after input.
+2026-11-20 18:22:38 CT | Read caption panel from slide entry | Love in the Movies [67:10]
+2026-11-20 18:22:41 CT | Pre-action screenshot R-1795220561165-verified-click.jpg | Love in the Movies; frame changed
+2026-11-20 18:23:01 CT | Pre-action screenshot R-1795220581418-playback.jpg | Love in the Movies; frame changed
+2026-11-20 18:23:17 CT | Pre-action screenshot R-1795220597553-playback.jpg | Love in the Movies; frame changed
+2026-11-20 18:23:27 CT | Answer checkpoint | Recognize the claim that someone acts jealous because they love their partner? | Yes, I’ve heard of that. | [67:36]–[67:43] | The narrator gives this example of romanticizing control.
+2026-11-20 18:23:27 CT | Coordinate click Yes, I’ve heard of that. at 457,558 | Caption monitor resumed immediately after input.
+2026-11-20 18:23:28 CT | Read caption panel from slide entry | "It's Out of Love" [68:00]
+2026-11-20 18:23:30 CT | Pre-action screenshot R-1795220610209-verified-click.jpg | "It's Out of Love"; frame changed
+2026-11-20 18:23:50 CT | Pre-action screenshot R-1795220630477-playback.jpg | "It's Out of Love"; frame changed
+2026-11-20 18:24:03 CT | Pre-action screenshot R-1795220643932-playback.jpg | "It's Out of Love"; frame changed
+2026-11-20 18:24:10 CT | Answer checkpoint | Have you ever had a friend who started dating someone and just disappeared? | No | domain | Selected the no-example branch for this reflection. No personal example was supplied.
+2026-11-20 18:24:10 CT | Coordinate click No at 374,643 | Caption monitor resumed immediately after input.
+2026-11-20 18:24:14 CT | Pre-action screenshot R-1795220654265-verified-click.jpg | "It's Out of Love"; frame changed
+2026-11-20 18:24:17 CT | Read caption panel from slide entry | Romantic or Creepy? [68:49]
+2026-11-20 18:24:34 CT | Pre-action screenshot R-1795220674612-playback.jpg | Romantic or Creepy?; frame changed
+2026-11-20 18:24:55 CT | Pre-action screenshot R-1795220695176-playback.jpg | Romantic or Creepy?; frame changed
+2026-11-20 18:25:15 CT | Pre-action screenshot R-1795220715382-playback.jpg | Romantic or Creepy?; frame changed
+2026-11-20 18:25:25 CT | Pre-action screenshot R-1795220725670-playback.jpg | Romantic or Creepy?; frame changed
+2026-11-20 18:25:36 CT | Answer checkpoint | Is continuing to follow someone after a clear breakup romantic or creepy? | Pretty creepy | [69:38]–[69:50] | She clearly tells him the relationship is over and the unwanted pursuit continues.
+2026-11-20 18:25:37 CT | Coordinate click Pretty creepy at 749,673 | Caption monitor resumed immediately after input.
+2026-11-20 18:25:39 CT | Read caption panel from slide entry | Pretty Creepy [70:11]
+2026-11-20 18:25:40 CT | Pre-action screenshot R-1795220740054-verified-click.jpg | Pretty Creepy; frame changed
+2026-11-20 18:25:53 CT | Read caption panel from slide entry | Your School's Definition: Stalking [70:25]
+2026-11-20 18:26:00 CT | Pre-action screenshot R-1795220760405-playback.jpg | Your School's Definition: Stalking; frame changed
+2026-11-20 18:26:17 CT | Pre-action screenshot R-1795220777970-playback.jpg | Your School's Definition: Stalking; frame changed
+2026-11-20 18:26:23 CT | Coordinate click Got It on the school’s definition of stalking at 1056,753 | Caption monitor resumed immediately after input.
+2026-11-20 18:26:24 CT | Read caption panel from slide entry | Why Abusers Get Away With It [70:56]
+2026-11-20 18:26:28 CT | Pre-action screenshot R-1795220788449-verified-click.jpg | Why Abusers Get Away With It; frame changed
+2026-11-20 18:26:48 CT | Pre-action screenshot R-1795220808281-playback.jpg | Why Abusers Get Away With It; frame changed
+2026-11-20 18:26:53 CT | Answer checkpoint | Who do you think of first when you hear “victim”? | Gender isn’t binary! | [58:28]–[58:30] | The transcript explicitly includes anyone, regardless of gender identity or sexual orientation.
+2026-11-20 18:26:53 CT | Coordinate click Gender isn’t binary! at 472,644 | Caption monitor resumed immediately after input.
+2026-11-20 18:26:55 CT | Read caption panel from slide entry | How Most People Image the Victim and Abuser [71:27]
+2026-11-20 18:26:58 CT | Pre-action screenshot R-1795220818707-verified-click.jpg | How Most People Image the Victim and Abuser; frame changed
+2026-11-20 18:27:11 CT | Read caption panel from slide entry | Do the Right Thing [71:43]
+2026-11-20 18:27:18 CT | Pre-action screenshot R-1795220838915-playback.jpg | Do the Right Thing; frame changed
+2026-11-20 18:27:39 CT | Pre-action screenshot R-1795220859243-playback.jpg | Do the Right Thing; frame changed
+2026-11-20 18:27:59 CT | Pre-action screenshot R-1795220879459-playback.jpg | Do the Right Thing; frame changed
+2026-11-20 18:28:09 CT | Pre-action screenshot R-1795220889814-playback.jpg | Do the Right Thing; frame changed
+2026-11-20 18:28:18 CT | Answer checkpoint | Will you help the person who needs your help? | I hope I will. | [72:19]–[72:31] | The course encourages helping people who need support. The reflective option expresses that aim without promising how the learner will act in a future situation.
+2026-11-20 18:28:19 CT | Coordinate click I hope I will. at 414,595 | Caption monitor resumed immediately after input.
+2026-11-20 18:28:21 CT | Pre-action screenshot R-1795220901336-verified-click.jpg | Do the Right Thing; frame changed
+2026-11-20 18:28:25 CT | Read caption panel from slide entry | Conclusion [72:57]
+2026-11-20 18:28:41 CT | Pre-action screenshot R-1795220921804-playback.jpg | Conclusion; frame changed
+2026-11-20 18:29:02 CT | Pre-action screenshot R-1795220942043-playback.jpg | Conclusion; frame changed
+2026-11-20 18:29:12 CT | Pre-action screenshot R-1795220952404-playback.jpg | Conclusion; frame changed
+2026-11-20 18:29:21 CT | Scrolled down in the player | Look beneath the completed lesson for the quiz
+2026-11-20 18:29:22 CT | Pre-action screenshot R-1795220962736-after-scroll.jpg | Conclusion; frame changed
+2026-11-20 18:29:32 CT | Coordinate click Continue beneath the concluded video at 758,805 | Caption monitor resumed immediately after input.
+2026-11-20 18:29:33 CT | Pre-action screenshot R-1795220973049-video-complete-continue.jpg | Conclusion; frame changed
+2026-11-20 18:29:43 CT | Pre-action screenshot R-1795220983478-quiz-introduction.jpg | Conclusion; frame changed
+2026-11-20 18:29:50 CT | Coordinate click Start the single-question Module 2 completion quiz at 468,526 | Caption monitor resumed immediately after input.
+2026-11-20 18:29:53 CT | Pre-action screenshot R-1795220993922-graded-question.jpg | Conclusion; frame changed
+2026-11-20 18:30:30 CT | Read the single graded question | It asks whether the learner completed and understood the module. Both radio buttons are empty. The learner’s answer has been requested.
+2026-11-20 18:31:36 -06:00 | Verified the final quiz and cleaned the transcript | Removed the player status message Continued that followed the final spoken caption. 597 caption lines remain.
+2026-11-20 18:31:36 -06:00 | Restored AC power timeouts | Display 900 seconds, standby 1800 seconds verified by powercfg.
+2026-11-20 18:32:43 CT | Pre-action screenshot R-1795221163602-completion-question-unanswered.jpg | Conclusion; frame unchanged
+2026-11-20 18:53:54 -06:00 | Resumed the existing Module 2 attempt with the learner's selected response | Confirmed AC display and sleep timeouts at zero.
+2026-11-20 18:56:10 CT | Resumed the single-question quiz | Both radio buttons were initially clear. The user specified “I have completed this module.” Basis [73:32], final slide and unlocked quiz.
+2026-11-20 18:58:05 CT | Selected “I have completed this module.” The affirmative radio registered value 1, and the other option remained 0. Basis [73:32], lesson conclusion and the user’s explicit choice.
+2026-11-20 18:58:12 CT | Submitted the final answer once. The player marked question 1 of 1 Correct and displayed its quiz NEXT button.
+2026-11-20 18:58:19 CT | Clicked the quiz NEXT button after Correct feedback. Quiz Results reports “Your score: 100%”, “Passed”, and a passing threshold of 80%. First and only submission.
+2026-11-20 18:59:00 CT | Read the original Canvas assignment while awaiting the player return. It still displayed its launch receipt and 100 possible points. No recorded submission or grade was visible in that loaded view.
+2026-11-20 18:59:38 CT | Refreshed the original Canvas assignment while the player remained on Quiz Results. Canvas now displays Submission and “Grade: Complete (100 pts possible)” for Module 2.
+2026-11-20 19:00:46 CT | Switched Chrome to the original, credited Canvas assignment. Its Submission panel and the Next Module Item link were both visible.
+2026-11-20 19:01:03 -06:00 | Clicked Canvas Next after the Complete grade appeared | Verified the active page heading Module 3: U Gotta Be An Upstander, assignment 3108979. Saved F14-module-3.jpg.
+2026-11-20 19:01:04 -06:00 | Restored and verified AC power settings | Display 900 seconds (15 minutes) and standby 1800 seconds (30 minutes).

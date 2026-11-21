@@ -341,15 +341,18 @@ class CourseItem:
                 const question = shapes.map(e => e.dataset.accText.trim()).find(t => t.endsWith('?')) || '';
                 const artwork = new Map(shapes.map(e => ['acc-' + e.dataset.modelId, e.dataset.accText.trim()]));
                 return Array.from(el.querySelectorAll(
-                'button,[role=button],[role=radio],[role=checkbox],input[type=submit],input[type=radio],input[type=checkbox]'
+                'button,[role=button],[role=radio],[role=checkbox],input[type=submit],input[type=radio],input[type=checkbox],a[href]'
             )).filter(c => c.checkVisibility() && c.getClientRects().length && !c.disabled
                 && !c.closest('[inert]') && !c.closest('.quiz__card:not(.quiz__card--active)')
-                && c.getAttribute('aria-disabled') !== 'true').map(c => ({
+                && c.getAttribute('aria-disabled') !== 'true'
+                && (c.tagName !== 'A' || (c.innerText.trim().toLowerCase() === 'start course'
+                    && c.getAttribute('href').startsWith('#/lessons/')))).map(c => ({
                 name: (c.getAttribute('aria-labelledby') || '').split(/ +/).filter(Boolean)
                             .map(id => document.getElementById(id)?.innerText || '').join(' ').trim()
                     || c.getAttribute('aria-label') || Array.from(c.labels || []).map(l => l.innerText).join(' ').trim()
                     || c.innerText?.trim() || c.title || c.value || '',
-                role: c.getAttribute('role') || (['radio','checkbox'].includes(c.type) ? c.type : 'button'),
+                role: c.getAttribute('role') || (c.tagName === 'A' ? 'link' :
+                    ['radio','checkbox'].includes(c.type) ? c.type : 'button'),
                 artwork: artwork.get(c.id) || '',
                 prompt: c.classList.contains('acc-shadow-el') && artwork.has(c.id) ? question : ''
             }))}""")

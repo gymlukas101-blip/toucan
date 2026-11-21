@@ -76,6 +76,10 @@ After the owner authorizes execution, `--queue` walks the saved plan.
 It saves the running item before dispatch, reuses a matching live player on
 resume, and checks the Modules page before marking an item done. A requested
 locked row becomes runnable only when Canvas publishes its active link.
+Exit code 3 signals a Computer Use handoff. The player stays open and the
+queue item stays running. Continue in the same player and append captions to
+the same transcript. If exit code 2 reports Canvas completion unconfirmed,
+check the Modules page before relaunching.
 
 ~~~powershell
 & $toucanPython -m tools.browser.run --queue "$runDirectory\queue.json"

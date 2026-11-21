@@ -16,10 +16,11 @@ The current checkout is `C:\Users\gymlu\OneDrive\Documents\Toucan`.
 - Connect to Toucan's Chrome profile at `127.0.0.1:9222`. The owner's main
   Chrome profile stays independent. Keep the Toucan window open behind other
   windows. Never minimize it.
-- Computer Use requires the foreground and is only for non-browser surfaces.
-  After two CDP stalls, a task with a named native fallback may hand off to
-  that surface. Log the foreground warning and the driver change. Keep browser
-  targets on CDP. The owner handles NetID and Duo in the Toucan window.
+- Computer Use requires the foreground. After two CDP stalls, queue exit code
+  3 hands off to Computer Use with the player open and the item still running.
+  Continue in the same player and append captions to the same transcript.
+  Log the foreground warning and driver change. The owner handles NetID and Duo
+  in the Toucan window.
 - A blank capture or a Chrome discard signal triggers one recovery reload on
   an ordinary page. Preserve loaded course players under rule 3. Report a
   missing capture separately from a playback stall. Check playback through

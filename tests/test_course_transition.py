@@ -119,3 +119,11 @@ class CourseTransitionTests(unittest.TestCase):
         self.assertTrue(self.driver.click(answer).ok)
         self.assertTrue(self.page.get_by_role("radio", name=answer["name"], exact=True).is_checked())
         self.assertFalse(self.page.get_by_role("radio", name="I have not completed this module.", exact=True).is_checked())
+
+    def test_rise_start_course_link_is_in_the_player_menu(self):
+        self.page.set_content("""<a href="#/lessons/example">START COURSE</a>
+            <a href="https://example.org">University Health Services</a>""")
+        steps = self.worker.controls(self.driver)
+        self.assertEqual(len(steps), 1)
+        self.assertEqual(steps[0]["locator"]["role"], "link")
+        self.assertEqual(steps[0]["locator"]["name"], "START COURSE")

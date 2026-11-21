@@ -52,6 +52,18 @@ Updated: 2026-11-20
 - The next run will use Luna Low for mechanical steps, Terra Medium for visual
   judgments, Fast mode at those tiers, and a 30-second polling interval.
 
+## Metrics
+
+| date | module | wall | active | turns | T0/T1/T2 | domain | stalls | retakes | score |
+|---|---|---|---|---|---|---|---|---|---|
+| 2026-11-20 | 2 | ~1h50m | 7m48s | - | mostly T2 | 7 | 1 | 0 | 100% |
+
+Populate from run.jsonl after each run. Use a dash for unavailable measurements.
+Module 2 predates run.jsonl. Its tier mix and single stall come from the
+supplied retrospective. The original run.log has no per-action tier or
+explicit stall count. The [report](report.md) records the seven domain
+answers, first-pass score and zero retakes.
+
 ## Open
 
 - Module 3 is ready to start.

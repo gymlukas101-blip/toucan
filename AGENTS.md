@@ -112,3 +112,4 @@ old line to memory/superseded.md and exclude it from future recall.
 Read LESSONS.md before each run. After the run, run tools/collect_lessons.py
 on its run.jsonl and compare candidates with report.md. Add, correct, or
 retire a lesson in LESSONS.md when the evidence warrants it.
+Update the Metrics table in STATE.md from the run's action log.

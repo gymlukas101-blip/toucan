@@ -125,7 +125,7 @@ Keep whole fact lines within the recall limit. Put a "may replace" hint in
 the fact text before its metadata. When a correction is confirmed, move the
 old line to memory/superseded.md and exclude it from future recall.
 
-Read LESSONS.md before each run. After the run, run tools/collect_lessons.py
-on its run.jsonl and compare candidates with report.md. Add, correct, or
-retire a lesson in LESSONS.md when the evidence warrants it.
+Read LESSONS.md before each run. After every run, run tools/collect_lessons.py
+on that run's run.jsonl, compare candidates with report.md, and append or fix
+a rule in LESSONS.md.
 Update the Metrics table in STATE.md from the run's action log.

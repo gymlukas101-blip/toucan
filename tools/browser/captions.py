@@ -21,10 +21,11 @@ def _target(page):
 def _read(page):
     for frame in visible_frames(page):
         sample = frame.evaluate("""() => {
-            const video = document.querySelector('video');
+            const video = [...document.querySelectorAll('video,audio')].find(m => !m.paused && !m.ended)
+                || document.querySelector('video,audio');
             const caption = document.querySelector(
                 '.vjs-text-track-display, .caption-text, .captions-text, ' +
-                '.caption-window, .closed-caption, [data-testid="caption"], ' +
+                '.caption-window, .caption-container, .closed-caption, [data-testid="caption"], ' +
                 '[class*="captionText"], [class*="subtitle-text"]');
             if (!video || !caption) return null;
             return {text: caption.innerText || '', time: video.currentTime};

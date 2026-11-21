@@ -75,6 +75,7 @@ Updated: 2026-11-20
 | 2026-11-20 | 2 | ~1h50m | 7m48s | - | mostly T2 | 7 | 1 | 0 | 100% |
 | 2026-11-20 | 3 assignment identity read | ~4s | - | - | 3/1/0 | 0 | 0 | 0 | - |
 | 2026-11-20 | 3–4 DOM queue preview | 4.65s | - | - | 4/2/0 | 0 | 0 | 0 | - |
+| 2026-11-21 | 3 incomplete run | ~7m | - | - | 62/44/0 | 0 | 2 | 0 | - |
 
 Populate from run.jsonl after each run. Use a dash for unavailable measurements.
 Module 2 predates run.jsonl. Its tier mix and single stall come from the

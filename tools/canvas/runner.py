@@ -1,6 +1,5 @@
 """Preview or walk DOM-derived queues using the existing page-scoped browser worker."""
 
-import hashlib
 import json
 import os
 import re
@@ -18,6 +17,7 @@ from tasks.queue import TERMINAL, exclusive, load, mark, next_pending, resume, s
 from tools.browser.attach import attach
 from tools.browser.driver import Driver, Outcome, public_url, visible_frames
 from tools.browser.launch import launch
+from tools.browser.player import PlayerEnded, player_ended, player_identity as _player_identity, target_id
 from tools.browser.run import BLOCKED, choose_page, hard_block, run_loop
 from tools.canvas.dom import CanvasDOM, ORIGIN
 from tools.canvas.plan import course_order, plan, queue_item, whole_course_row
@@ -29,7 +29,7 @@ class ComputerHandoff(Exception):
 
 
 def handoff(log):
-    log.write("handoff", "player", "handoff", 0, driver="computer", tier="T1", reason="stall")
+    log.write("handoff", "player", "handoff", 0, driver="computer", tier="T1", reason="stall", rule_used="L10")
     print("HANDOFF: switch to @Computer", flush=True)
     raise ComputerHandoff()
 
@@ -76,8 +76,20 @@ def _course_id(item):
     return str(cid)
 
 
+def _item_ended(item, log):
+    if not item.get("awaiting_verification"):
+        item["awaiting_verification"] = True
+        if item.get("player"):
+            item["ended_player"] = item["player"]
+        item.pop("handoff", None)
+        if log is not None:
+            log.write("item-ended", item["title"], "item-ended", 0, tier="T1", rule_used="L14")
+
+
 def _reconcile(queue, dom):
     """Read each course once. Reapply the saved request so newly unlocked rows can join."""
+    started = time.monotonic()
+    dom.ended_targets = {i["ended_player"] for i in queue["items"] if i.get("ended_player")}
     ids = [c["id"] for c in queue.get("courses", [])] or list(dict.fromkeys(_course_id(i) for i in queue["items"]))
     requested = set(queue.get("requested_keys", []))
     entire_course = queue["type"] == "course_all" and queue.get("request")
@@ -108,11 +120,21 @@ def _reconcile(queue, dom):
             observed[item["key"]] = row
         if item["status"] in TERMINAL:
             continue
+        verifying_end = item.get("awaiting_verification")
         if row and row["state"] == "complete" and row["url"] in {"", item["url"]}:
             mark(queue, item["key"], "done", "Canvas confirmed completion: " + (row["label"] or "checkmark"))
+        elif verifying_end:
+            evidence = "row missing" if not row else f"{row['state']} ({row['label'] or 'no status label'})"
+            if row and row["url"] and row["url"] != item["url"]:
+                evidence = "item link changed"
+            mark(queue, item["key"], "blocked", f"The player ended. Canvas completion unconfirmed: {evidence}.")
         elif not row or row["state"] != "pending" or row["url"] != item["url"]:
             reason = row["state"] if row else "missing from the listing"
             mark(queue, item["key"], "blocked", f"Item unavailable or link changed ({reason}).")
+        if verifying_end:
+            result = "ok" if item["status"] == "done" else "blocked"
+            dom.log.write("verify-completion", item["title"], result, (time.monotonic() - started) * 1000,
+                          source="dom", tier="T1", detail=item["note"])
     queue["items"].sort(key=lambda i: order.get(observed.get(i["key"], {}).get("key"), len(rows)))
     return deferred
 
@@ -128,56 +150,69 @@ def walk_queue(path, dom, open_players, perform):
         while item := next_pending(queue):
             key = item["key"]
             if item.get("handoff") and live.get(item.get("player")):
-                print("HANDOFF: switch to @Computer", flush=True)
-                raise ComputerHandoff()
+                # The popup can redirect while the initial Modules snapshot is in flight.
+                live = open_players(queue)
+                if item["player"] in live:
+                    print("HANDOFF: switch to @Computer", flush=True)
+                    raise ComputerHandoff()
+                _item_ended(item, dom.log)
+                save(path, queue)
+                deferred = _reconcile(queue, dom)
+                save(path, queue)
+                continue
             item.pop("handoff", None)
             started = time.monotonic()
             mark(queue, key, "running", "Running the listed item.")
             save(path, queue)
+            page = live.get(item.get("player"))
             try:
-                outcome = perform(item, live.get(item.get("player")), lambda: save(path, queue))
-            except Error:
-                outcome = Outcome("aborted", detail="The course page became unavailable during the item.")
+                outcome = perform(item, page, lambda: save(path, queue))
+            except PlayerEnded as end:
+                outcome = Outcome("item-ended", detail=str(end))
+            except Error as error:
+                if item.get("player") and player_ended(page, item.get("player_identity"), error):
+                    outcome = Outcome("item-ended")
+                else:
+                    outcome = Outcome("aborted", detail="The course page became unavailable during the item.")
             except (OSError, RuntimeError, ValueError) as error:
                 outcome = Outcome("aborted", detail=str(error))
             if outcome.result == "handoff":
-                item["handoff"] = True
+                if item.get("player") and item["player"] not in open_players(queue):
+                    outcome = Outcome("item-ended")
+                else:
+                    item["handoff"] = True
+                    save(path, queue)
+                    handoff(dom.log)
+            if outcome.result == "item-ended":
+                _item_ended(item, dom.log)
+                # A failed listing read can be retried without opening the old player.
                 save(path, queue)
-                handoff(dom.log)
             # A player score, closed popup or model decision alone cannot complete a row.
             deferred = _reconcile(queue, dom)
             if item["status"] == "running":
                 mark(queue, key, "blocked", "Canvas completion unconfirmed. " + outcome.detail)
             save(path, queue)
-            dom.log.write("queue_item", item["title"], "ok" if item["status"] == "done" else "miss",
-                          (time.monotonic() - started) * 1000, source="dom", detail=item["note"])
+            if outcome.result != "item-ended":
+                dom.log.write("queue_item", item["title"], "ok" if item["status"] == "done" else "miss",
+                              (time.monotonic() - started) * 1000, source="dom", detail=item["note"])
         return queue, deferred
 
 
-def target_id(page):
-    session = page.context.new_cdp_session(page)
-    try:
-        return session.send("Target.getTargetInfo")["targetInfo"]["targetId"]
-    finally:
-        session.detach()
-
-
-def live_players(browser, queue):
-    expected = {i["player"]: i for i in queue["items"] if i["status"] == "running" and i.get("player")}
+def live_players(browser, queue, log=None):
+    expected = {i["player"]: i for i in queue["items"] if i["status"] == "running" and i.get("player")
+                and not i.get("awaiting_verification")}
     found = {}
     if expected:
         for page in browser.contexts[0].pages:
             tid = target_id(page)
             item = expected.get(tid)
-            if item and _player_identity(page.url) == item.get("player_identity"):
+            if not item or not item.get("player_identity"):
+                continue
+            if _player_identity(page.url) == item["player_identity"]:
                 found[tid] = page
+            else:
+                _item_ended(item, log)
     return found
-
-
-def _player_identity(url):
-    # Bind the live document, including any item identifier in its query, without
-    # persisting a signed launch URL. Slide changes in a fragment stay in the same item.
-    return hashlib.sha256(url.split("#", 1)[0].encode("utf-8")).hexdigest()
 
 
 class CourseItem:
@@ -194,8 +229,8 @@ class CourseItem:
             return False
         if page is self.player:
             parts = urlsplit(page.url)
-            # A player returning to a Canvas course page has finished its turn. Only
-            # the queue can select the next assignment, after checking the Modules list.
+            if self.item.get("player_identity") and _player_identity(page.url) != self.item["player_identity"]:
+                return False
             return parts.scheme in {"http", "https"} and not (
                 parts.hostname == "canvas.wisc.edu" and re.match(r"/courses/\d+(?:/|$)", parts.path))
         return _player_identity(page.url) == self.entry_identity
@@ -208,8 +243,15 @@ class CourseItem:
     def remember_popup(self, page):
         if urlsplit(page.url).scheme not in {"https", "http"}:
             raise ValueError("The course popup did not reach a web page.")
+        identity = _player_identity(page.url)
         self.player = page
-        self.item.update(player=target_id(page), player_identity=_player_identity(page.url))
+        try:
+            target = target_id(page)
+        except Error as error:
+            if player_ended(page, identity, error):
+                raise PlayerEnded("The player ended during launch. Verify completion on Canvas.") from error
+            raise
+        self.item.update(player=target, player_identity=identity)
         self.persist()
 
     def controls(self, driver):
@@ -254,18 +296,18 @@ class CourseItem:
 
 
 def perform_item(browser, dom, item, player, persist):
-    page = player or choose_page(browser, item["url"])
+    page = player or choose_page(browser, item["url"], excluded_targets=dom.ended_targets)
     driver = Driver(page, dom.log)
     if not player and page.url != item["url"]:
         opened = driver.goto(item["url"])
         if not opened.ok:
             return opened
-    settled = driver.settle()
-    if not settled.ok:
-        return settled
-    if reason := hard_block(driver):
-        return Outcome("aborted", detail=reason)
     if not player:
+        settled = driver.settle()
+        if not settled.ok:
+            return settled
+        if reason := hard_block(driver):
+            return Outcome("aborted", detail=reason)
         if urlsplit(page.url)[:2] != urlsplit(item["url"])[:2]:
             return Outcome("aborted", detail="The item link redirected to a different origin.")
         if page.url.startswith(ORIGIN + "/"):
@@ -311,7 +353,7 @@ def canvas_command(args):
             print(json.dumps(report, ensure_ascii=True, indent=2))
             return 0
         try:
-            queue, deferred = walk_queue(args.queue, dom, lambda q: live_players(browser, q),
+            queue, deferred = walk_queue(args.queue, dom, lambda q: live_players(browser, q, dom.log),
                                          lambda i, p, save_state: perform_item(browser, dom, i, p, save_state))
         except ComputerHandoff:
             return 3

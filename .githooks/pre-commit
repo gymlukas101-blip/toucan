@@ -1,3 +1,4 @@
 #!/bin/sh
 py -3 tools/check_secrets.py --staged || exit 1
 py -3 tools/validate_memory.py || exit 1
+py -3 tools/collect_lessons.py --check-staged || exit 1

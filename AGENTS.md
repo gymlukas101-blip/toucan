@@ -36,13 +36,17 @@ The current checkout is `C:\Users\gymlu\OneDrive\Documents\Toucan`.
 run.jsonl, one object per line, append-only:
 
 ```text
-{"t":"<ISO8601>","action":"<verb>","target":"<what>","result":"<ok|miss|stall|ambiguous|aborted|domain|escalate>","tier":"<T0|T1|T2>","basis":"<MM:SS|domain>","ms":<int>,"driver":"<cdp|computer>"}
+{"t":"<ISO8601>","action":"<verb>","target":"<what>","result":"<ok|miss|stall|ambiguous|aborted|domain|escalate|handoff|item-ended|blocked>","tier":"<T0|T1|T2>","basis":"<MM:SS|domain>","ms":<int>,"driver":"<cdp|computer>"}
 ```
 
 result carries the event word the digest reads. Use "domain" on any
 domain-sourced answer. Record each action's elapsed milliseconds in ms.
 For a retake, use the action "retake" and record its result.
 Record `cdp` for browser actions and `computer` for native handoffs. Older logs may omit `driver`.
+When an active lesson drives a decision, record its ID once on that decision
+as `"rule_used":"L14"` (using the applicable ID). Omit the field otherwise.
+Use `item-ended` for the end of a player session and check the Canvas Modules
+row before marking the item done.
 
 Example record
 
@@ -127,5 +131,9 @@ old line to memory/superseded.md and exclude it from future recall.
 
 Read LESSONS.md before each run. After every run, run tools/collect_lessons.py
 on that run's run.jsonl, compare candidates with report.md, and append or fix
-a rule in LESSONS.md.
+a rule in LESSONS.md. Keep at most 12 active rules. After editing, run
+`py -3 tools/collect_lessons.py <run.jsonl> --prune` to delete excess rules
+by recorded use across project and local Toucan run logs. Pass
+`--history <directory>` for runs stored elsewhere. Older logs without rule IDs
+contribute zero recorded uses. Keep IDs stable across edits and retirements.
 Update the Metrics table in STATE.md from the run's action log.

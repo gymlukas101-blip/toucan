@@ -8,17 +8,10 @@ from playwright.sync_api import Error, sync_playwright
 
 from tools.browser.attach import attach
 from tools.browser.driver import visible_frames
+from tools.browser.player import PlayerEnded, PlayerWatch, player_identity, target_id as _target
 
 
-def _target(page):
-    session = page.context.new_cdp_session(page)
-    try:
-        return session.send("Target.getTargetInfo")["targetInfo"]["targetId"]
-    finally:
-        session.detach()
-
-
-def _read(page):
+def _read(page, watch=None):
     for frame in visible_frames(page):
         sample = frame.evaluate("""() => {
             const video = [...document.querySelectorAll('video,audio')].find(m => !m.paused && !m.ended)
@@ -27,20 +20,24 @@ def _read(page):
                 '.vjs-text-track-display, .caption-text, .captions-text, ' +
                 '.caption-window, .caption-container, .closed-caption, [data-testid="caption"], ' +
                 '[class*="captionText"], [class*="subtitle-text"]');
-            if (!video || !caption) return null;
-            return {text: caption.innerText || '', time: video.currentTime};
+            if (!video) return null;
+            return {text: caption ? caption.innerText || '' : null, time: video.currentTime};
         }""")
         if sample is not None:
-            return sample
+            if watch:
+                watch.track_media(frame)
+            if sample["text"] is not None:
+                return sample
     return None
 
 
 class CaptionSampler:
-    def __init__(self, target, path, log, interval=0.8):
+    def __init__(self, target, path, log, interval=0.8, *, watch=None):
         self.target = target
         self.path = Path(path)
         self.log = log
         self.interval = interval
+        self.watch = watch
         self.stop_event = threading.Event()
         self.ready = threading.Event()
         self.error = None
@@ -63,10 +60,18 @@ class CaptionSampler:
         try:
             with sync_playwright() as pw:
                 browser = attach(pw)
-                page = next(p for p in browser.contexts[0].pages if _target(p) == self.target)
-                self._sample(page)
+                page = next((p for p in browser.contexts[0].pages if _target(p) == self.target), None)
+                if page is None:
+                    raise PlayerEnded("The player closed before caption capture started.")
+                self.watch = self.watch or PlayerWatch(player_identity(page.url))
+                with self.watch.observe(page):
+                    self._sample(page)
+        except PlayerEnded:
+            if self.watch:
+                self.watch.ended.set()
         except Exception as error:
             self.error = error
+        finally:
             self.ready.set()
 
     def _sample(self, page):
@@ -77,14 +82,20 @@ class CaptionSampler:
         with self.path.open("a", encoding="utf-8", buffering=1) as output:
             self.ready.set()
             while not self.stop_event.is_set():
+                if self.watch:
+                    self.watch.check(page)
                 try:
-                    sample = _read(page)
-                except Error:
+                    sample = _read(page, self.watch)
+                except Error as error:
+                    if self.watch:
+                        self.watch.check(page, error)
                     sample = None
+                if self.watch:
+                    self.watch.check(page)
                 if sample is None:
                     missing_since = missing_since or time.monotonic()
                     if not reported and time.monotonic() - missing_since > 15:
-                        self.log.write("captions-missing", "player", "miss", 0, tier="T1")
+                        self.log.write("captions-missing", "player", "miss", 0, tier="T1", rule_used="L09")
                         reported = True
                 else:
                     missing_since = None

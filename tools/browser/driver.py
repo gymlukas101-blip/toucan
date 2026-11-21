@@ -18,6 +18,7 @@ from PIL import Image
 from playwright.sync_api import Error, Frame, Locator, Page, TimeoutError as PlaywrightTimeout
 
 from tools.check_secrets import PATTERNS
+from tools.lessons import LESSONS, lesson_rules
 
 
 def public_url(url: str) -> str:
@@ -40,9 +41,10 @@ class RunLog:
     def __init__(self, path: Path):
         self.path = Path(path)
         self.path.parent.mkdir(parents=True, exist_ok=True)
+        self.lessons = lesson_rules(LESSONS.read_text(encoding="utf-8"))
 
     def write(self, action, target, result, ms, *, driver="cdp", tier="T0", basis="domain", detail="",
-              source=None, elements=None, reason=None):
+              source=None, elements=None, reason=None, rule_used=None):
         record = dict(t=datetime.now(timezone.utc).isoformat(), action=action, target=target,
                       result=result, tier=tier, basis=basis, ms=round(ms), driver=driver)
         if detail:
@@ -53,6 +55,8 @@ class RunLog:
             record["elements"] = elements
         if reason is not None:
             record["reason"] = reason
+        if rule_used in self.lessons:
+            record["rule_used"] = rule_used
         data = json.dumps(record, ensure_ascii=True).encode("utf-8")
         for pattern in PATTERNS.values():
             data = pattern.sub(b"<redacted>", data)
@@ -117,11 +121,17 @@ class Driver:
         self._capture_retry = None
         self._seen_discard = None
         self._course_popup = None
+        self.player_watch = None
         self._next_viewport = 0.0
+
+    def check_player(self, error=None):
+        if self.player_watch is not None:
+            self.player_watch.check(self.page, error)
 
     def _action(self, name: str, target: str, operation, *, tier="T0") -> Outcome:
         start = time.monotonic()
         for attempt in range(2):
+            self.check_player()
             try:
                 outcome = Outcome("ok", operation())
                 break
@@ -129,6 +139,7 @@ class Driver:
                 outcome = Outcome(error.result, False, str(error))
                 break
             except Error as error:
+                self.check_player(error)
                 stale = any(word in str(error).lower() for word in
                             ("detached", "not attached", "execution context was destroyed"))
                 if stale and attempt == 0:
@@ -139,6 +150,7 @@ class Driver:
             except (OSError, ValueError) as error:
                 outcome = Outcome("miss", False, str(error))
                 break
+        self.check_player()
         self.log.write(name, target, outcome.result, (time.monotonic() - start) * 1000,
                        tier=tier, basis=self.basis, detail=outcome.detail)
         return outcome
@@ -208,6 +220,7 @@ class Driver:
     def _check_input(self):
         if self.auth_required():
             raise ActionFailure("aborted", "Manual sign-in required.")
+        self.check_player()
 
     def _click(self, target):
         self._check_input()
@@ -231,6 +244,7 @@ class Driver:
                 if len(found) > 1:
                     raise ActionFailure("ambiguous", "More than one visible control matches the target.")
                 if found:
+                    self.check_player()
                     guarded_click(lambda: found[0].click(timeout=2000))
                     return "named control"
         if "point" in spec:
@@ -238,6 +252,7 @@ class Driver:
             if not all(isinstance(v, (float, int)) and math.isfinite(v) and 0 <= v < 1 for v in (x, y)):
                 raise ValueError("Viewport coordinates must be fractions in [0, 1).")
             width, height = self.page.evaluate("() => [innerWidth, innerHeight]")
+            self.check_player()
             guarded_click(lambda: self.page.mouse.click(x * width, y * height))
             return "viewport point"
         raise ActionFailure("miss", "No visible control matched.")
@@ -276,6 +291,7 @@ class Driver:
 
     def _viewport(self, kind: str) -> tuple[bytes, str]:
         time.sleep(max(0, self._next_viewport - time.monotonic()))
+        self.check_player()
         self._next_viewport = time.monotonic() + 10
         try:
             data = self.page.screenshot(type=kind, full_page=False, timeout=5000)
@@ -303,6 +319,9 @@ class Driver:
 
     def _reload_for_capture(self, url: str, reason: str) -> bool:
         page = self.page
+        self.check_player()
+        if self.player_watch is not None:
+            return False
         session = page.context.new_cdp_session(page)
         started = time.monotonic()
         try:
@@ -327,6 +346,7 @@ class Driver:
             self.log.write("capture_reload", reason, "ok", (time.monotonic() - started) * 1000)
             return True
         except Error as error:
+            self.check_player(error)
             raise ActionFailure("miss", f"{reason}. Could not safely reload the inspected document.") from error
         finally:
             session.detach()
@@ -341,7 +361,8 @@ class Driver:
             started = time.monotonic()
             data, reason = self._capture_state(kind)
             if reason == "screenshot timed out":
-                self.log.write("capture_retry", reason, "miss", (time.monotonic() - started) * 1000)
+                self.check_player()
+                self.log.write("capture_retry", reason, "miss", (time.monotonic() - started) * 1000, rule_used="L06")
                 data, reason = self._capture_state(kind)
                 if reason == "screenshot timed out":
                     raise ActionFailure("miss", "Viewport capture timed out twice.")
@@ -392,9 +413,12 @@ class Driver:
             previous = {}
             deadline = time.monotonic() + seconds
             while True:
+                self.check_player()
                 for f in visible_frames(self.page):
                     samples = f.evaluate("""() => Array.from(document.querySelectorAll('video,audio'), (m,i) =>
                         [i, m.currentSrc, m.currentTime, m.duration || 0, m.loop, m.paused])""")
+                    if samples and self.player_watch:
+                        self.player_watch.track_media(f)
                     for index, source, value, duration, looping, paused in samples:
                         key = (f, index, source)
                         old = previous.get(key)

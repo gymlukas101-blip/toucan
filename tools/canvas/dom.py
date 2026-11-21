@@ -84,6 +84,8 @@ class CanvasDOM:
         self.run_dir = Path(run_dir)
         self.log = RunLog(self.run_dir / "run.jsonl")
         self.snapshots = []
+        self._verification_pages = {}
+        self.ended_targets = set()
 
     def _page(self, path, *, courses=False):
         for page in self.context.pages:
@@ -100,12 +102,17 @@ class CanvasDOM:
                     '[role=navigation][aria-label*="course" i]) a[href*="/courses/"]:visible'
                 ).count():
                     return page, False
-        # Give the list its own background tab. Existing assignments and players keep their documents.
+        return self._open_listing(path), True
+
+    def _open_listing(self, path):
         session = self.browser.new_browser_cdp_session()
         try:
             with self.context.expect_page(timeout=10000) as new_page:
                 session.send("Target.createTarget", {"url": ORIGIN + path, "background": True})
-            return new_page.value, True
+            page = new_page.value
+            if page.url == "about:blank":
+                page.wait_for_url(lambda url: url != "about:blank", wait_until="domcontentloaded", timeout=15000)
+            return page
         finally:
             session.detach()
 
@@ -154,7 +161,16 @@ class CanvasDOM:
         course_id = str(course_id)
         if not re.fullmatch(r"[0-9]+", course_id):
             raise ValueError("Canvas course ID must be numeric.")
-        page, opened = self._page(f"/courses/{course_id}/modules")
+        path = f"/courses/{course_id}/modules"
+        if refresh:
+            # The expired popup may itself have redirected to this exact Modules URL.
+            # Verify in a listing tab we opened, and reuse it on later items.
+            page = self._verification_pages.get(course_id)
+            opened = page is None or page.is_closed() or page.url.rstrip("/") != ORIGIN + path
+            if opened:
+                page = self._verification_pages[course_id] = self._open_listing(path)
+        else:
+            page, opened = self._page(path)
         snapshot = self._snapshot(page, "modules", course_id, refresh=refresh and not opened)
         collapsed = [s["title"] for s in snapshot["sections"] if s["collapsed"]]
         if collapsed:

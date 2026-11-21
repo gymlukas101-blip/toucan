@@ -1,6 +1,7 @@
 """DOM navigation, queue persistence and completion proofs. Uses only local fixtures."""
 
 import copy
+import json
 import tempfile
 import unittest
 from pathlib import Path
@@ -287,11 +288,13 @@ class BackgroundSnapshotTests(unittest.TestCase):
                 def pixels(driver, path):
                     path.write_bytes(b"local fixture viewport")
                     return Outcome("ok")
-                finish = dict(action="done", target="", text="", basis="domain")
+                finish = dict(action="done", target="", text="", basis="domain", rule_used="L04")
                 with patch("tools.browser.driver.Driver.shot", pixels), patch("tools.browser.run.decide", return_value=finish):
                     completed = perform_item(browser, dom, item, None, lambda: None)
                 self.assertTrue(completed.ok, completed)
                 self.assertIn("Canvas verification is pending", completed.detail)
+                records = [json.loads(line) for line in dom.log.path.read_text(encoding="utf-8").splitlines()]
+                self.assertEqual([r["rule_used"] for r in records if r["action"] == "decide"], ["L04"])
                 self.assertEqual(page.evaluate("window.fixtureClicks"), 0)
             finally:
                 page.close()

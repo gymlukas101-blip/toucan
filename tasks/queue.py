@@ -48,15 +48,17 @@ def mark(queue, key, status, note=""):
             if status != "running":
                 item.pop("player", None)
                 item.pop("player_identity", None)
+                item.pop("awaiting_verification", None)
+                item.pop("handoff", None)
             return item
     raise KeyError(key)
 
 
 def resume(queue, open_players=()):
-    """Keep a running item only when its recorded browser target is still live."""
+    """Resume the bound player or its outstanding Canvas verification."""
     live = set(open_players)
     for item in queue["items"]:
-        if item["status"] == "running" and (not item.get("player") or item["player"] not in live):
+        if item["status"] == "running" and not item.get("awaiting_verification") and item.get("player") not in live:
             mark(queue, item["key"], "pending", "Resumed after interruption.")
     return queue
 

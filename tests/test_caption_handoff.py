@@ -22,7 +22,7 @@ class CaptionAndHandoffTests(unittest.TestCase):
             sampler = CaptionSampler("fixture", path, log, interval=0.2)
             readings = iter([{"text": "one", "time": 0}, {"text": "one", "time": 1},
                              {"text": "two", "time": 2}, {"text": "three", "time": 3}])
-            def read(_page):
+            def read(_page, _watch):
                 return next(readings, {"text": "three", "time": 3})
             with patch("tools.browser.captions._read", side_effect=read):
                 thread = threading.Thread(target=sampler._sample, args=(object(),))
@@ -49,7 +49,7 @@ class CaptionAndHandoffTests(unittest.TestCase):
                 return Outcome("handoff", detail="stall")
             with patch("tools.canvas.runner._reconcile", return_value=[]):
                 with self.assertRaises(ComputerHandoff):
-                    walk_queue(path, dom, lambda _q: {}, perform)
+                    walk_queue(path, dom, lambda q: {"target": object()} if q["items"][0].get("player") else {}, perform)
                 self.assertEqual(load(path)["items"][0]["status"], "running")
                 worker = Mock()
                 with self.assertRaises(ComputerHandoff):

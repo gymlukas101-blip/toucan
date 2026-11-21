@@ -191,6 +191,53 @@ def hard_block(driver):
 
 
 def run_loop(task, driver, transcript_path, capture, *, course_item=None):
+    if not course_item:
+        return _run_loop(task, driver, transcript_path, capture)
+    from tools.browser.captions import CaptionSampler, _target
+
+    sampler = None
+    failures = 0
+    original_progress = driver.assert_progress
+    original_popup = course_item.remember_popup
+
+    class Handoff(Exception):
+        pass
+
+    def start_sampler(page):
+        nonlocal sampler
+        if sampler is not None:
+            sampler.stop()
+        sampler = CaptionSampler(_target(page), transcript_path, driver.log)
+        sampler.start()
+
+    def remember_popup(page):
+        original_popup(page)
+        start_sampler(page)
+
+    def progress(seconds=5):
+        nonlocal failures
+        result = original_progress(seconds)
+        failures = 0 if result.ok else failures + 1
+        if failures >= 2:
+            raise Handoff()
+        return result
+
+    course_item.remember_popup = remember_popup
+    driver.assert_progress = progress
+    try:
+        if course_item.player:
+            start_sampler(course_item.player)
+        return _run_loop(task, driver, transcript_path, capture, course_item=course_item)
+    except Handoff:
+        return Outcome("handoff", detail="stall")
+    finally:
+        if sampler is not None:
+            sampler.stop()
+        course_item.remember_popup = original_popup
+        driver.assert_progress = original_progress
+
+
+def _run_loop(task, driver, transcript_path, capture, *, course_item=None):
     menu = {(s["action"], s["target"], s.get("text", "")): s for s in task["actions"]}
     origins = {urlsplit(url)[:2] for url in [task["url"], *task.get("allowed_origins", [])]}
     same_frame = None

@@ -42,7 +42,7 @@ class RunLog:
         self.path.parent.mkdir(parents=True, exist_ok=True)
 
     def write(self, action, target, result, ms, *, driver="cdp", tier="T0", basis="domain", detail="",
-              source=None, elements=None):
+              source=None, elements=None, reason=None):
         record = dict(t=datetime.now(timezone.utc).isoformat(), action=action, target=target,
                       result=result, tier=tier, basis=basis, ms=round(ms), driver=driver)
         if detail:
@@ -51,6 +51,8 @@ class RunLog:
             record["source"] = source
         if elements is not None:
             record["elements"] = elements
+        if reason is not None:
+            record["reason"] = reason
         data = json.dumps(record, ensure_ascii=True).encode("utf-8")
         for pattern in PATTERNS.values():
             data = pattern.sub(b"<redacted>", data)

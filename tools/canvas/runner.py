@@ -24,6 +24,16 @@ from tools.canvas.plan import course_order, plan, queue_item, whole_course_row
 from tools.canvas.resolve import normalized
 
 
+class ComputerHandoff(Exception):
+    pass
+
+
+def handoff(log):
+    log.write("handoff", "player", "handoff", 0, driver="computer", tier="T1", reason="stall")
+    print("HANDOFF: switch to @Computer", flush=True)
+    raise ComputerHandoff()
+
+
 def dry_run(dom, request, course, run_dir):
     started = datetime.now(timezone.utc)
     queue, report = plan(request, dom.courses(), lambda cid: dom.modules(cid, refresh=True), course)
@@ -117,6 +127,10 @@ def walk_queue(path, dom, open_players, perform):
         save(path, queue)
         while item := next_pending(queue):
             key = item["key"]
+            if item.get("handoff") and live.get(item.get("player")):
+                print("HANDOFF: switch to @Computer", flush=True)
+                raise ComputerHandoff()
+            item.pop("handoff", None)
             started = time.monotonic()
             mark(queue, key, "running", "Running the listed item.")
             save(path, queue)
@@ -126,6 +140,10 @@ def walk_queue(path, dom, open_players, perform):
                 outcome = Outcome("aborted", detail="The course page became unavailable during the item.")
             except (OSError, RuntimeError, ValueError) as error:
                 outcome = Outcome("aborted", detail=str(error))
+            if outcome.result == "handoff":
+                item["handoff"] = True
+                save(path, queue)
+                handoff(dom.log)
             # A player score, closed popup or model decision alone cannot complete a row.
             deferred = _reconcile(queue, dom)
             if item["status"] == "running":
@@ -292,8 +310,11 @@ def canvas_command(args):
             _, report = dry_run(dom, args.dry_run, args.course, folder)
             print(json.dumps(report, ensure_ascii=True, indent=2))
             return 0
-        queue, deferred = walk_queue(args.queue, dom, lambda q: live_players(browser, q),
-                                     lambda i, p, save_state: perform_item(browser, dom, i, p, save_state))
+        try:
+            queue, deferred = walk_queue(args.queue, dom, lambda q: live_players(browser, q),
+                                         lambda i, p, save_state: perform_item(browser, dom, i, p, save_state))
+        except ComputerHandoff:
+            return 3
         lines = ["", "## Execution outcomes", ""]
         lines.extend(f"- {i['title']} — {i['status']}. {i['note']}" for i in queue["items"])
         lines.extend(f"- {i.get('title', i.get('key'))} — {i['reason']}." for i in deferred)

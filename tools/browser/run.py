@@ -195,6 +195,7 @@ def run_loop(task, driver, transcript_path, capture):
     origins = {urlsplit(url)[:2] for url in [task["url"], *task.get("allowed_origins", [])]}
     same_frame = None
     stalls = 0
+    missed_captures = 0
     next_capture = 0.0
     domain_attempt = False
     while stalls < 3:
@@ -204,9 +205,15 @@ def run_loop(task, driver, transcript_path, capture):
         if urlsplit(driver.page.url)[:2] not in origins:
             return Outcome("aborted", detail="The page left the task's declared origins.")
         shot = driver.shot(capture / "viewport.png")
-        observed = driver.read()
         next_capture = time.monotonic() + 30
-        if not shot.ok or not observed.ok:
+        if not shot.ok:
+            missed_captures += 1
+            if missed_captures == 3:
+                return Outcome("miss", detail=f"Three unavailable viewport captures. {shot.detail}")
+            continue
+        missed_captures = 0
+        observed = driver.read()
+        if not observed.ok:
             stalls += 1
             continue
         transcript = read_transcript(transcript_path)
@@ -262,7 +269,7 @@ def run_loop(task, driver, transcript_path, capture):
             with driver.page.expect_popup(timeout=5000) as opened:
                 result = dispatch(driver, action, step)
             if result.ok:
-                driver.page = opened.value
+                driver.use_popup(opened.value)
                 driver.page.wait_for_load_state("domcontentloaded", timeout=15000)
         else:
             result = dispatch(driver, action, step)

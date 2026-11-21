@@ -4,14 +4,17 @@ import ctypes
 import json
 import math
 import re
+import tempfile
 import time
 from ctypes import wintypes
 from dataclasses import dataclass
 from datetime import datetime, timezone
+from io import BytesIO
 from pathlib import Path
 from typing import Any, Callable
-from urllib.parse import urlsplit, urlunsplit
+from urllib.parse import parse_qsl, urlsplit, urlunsplit
 
+from PIL import Image
 from playwright.sync_api import Error, Frame, Locator, Page, TimeoutError as PlaywrightTimeout
 
 from tools.check_secrets import PATTERNS
@@ -89,11 +92,25 @@ def _visible_matches(locators: list[Locator]) -> list[Locator]:
     return [match for locator in locators for match in locator.all() if match.is_visible()]
 
 
+def _player_address(url: str) -> bool:
+    parts = urlsplit(url)
+    host = (parts.hostname or "").lower()
+    path = parts.path.lower()
+    return (host == "insops.net" or host.endswith(".insops.net") or "scorm" in host or "scorm" in path
+            or "/launch_complete" in path or "/external_tools/retrieve" in path
+            or any(k.lower() in {"jwt", "sig", "signature", "token", "launch_token"}
+                   for k, _ in parse_qsl(parts.query)))
+
+
 class Driver:
     def __init__(self, page: Page, log: RunLog):
         self.page = page
         self.log = log
         self.basis = "domain"
+        self._capture_retry = None
+        self._seen_discard = None
+        self._course_popup = None
+        self._next_viewport = 0.0
 
     def _action(self, name: str, target: str, operation, *, tier="T0") -> Outcome:
         start = time.monotonic()
@@ -244,11 +261,103 @@ class Driver:
             self.page.mouse.wheel(0, dy)
         return self._action("scroll", str(dy), wheel)
 
+    def use_popup(self, page: Page):
+        if (self.page is self._course_popup
+                or re.search(r"/courses/\d+/assignments/\d+(?:/|$)", urlsplit(self.page.url).path)):
+            self._course_popup = page
+        self.page = page
+
+    def _viewport(self, kind: str) -> tuple[bytes, str]:
+        time.sleep(max(0, self._next_viewport - time.monotonic()))
+        self._next_viewport = time.monotonic() + 10
+        try:
+            data = self.page.screenshot(type=kind, full_page=False, timeout=5000)
+        except PlaywrightTimeout:
+            return b"", "screenshot timed out"
+        with Image.open(BytesIO(data)) as image:
+            pixels = image if image.mode in {"RGB", "RGBA"} else image.convert("RGBA")
+            if (all(low == high for low, high in pixels.getextrema())
+                    or pixels.mode == "RGBA" and pixels.getchannel("A").getbbox() is None):
+                return b"", "blank viewport"
+        return data, ""
+
+    def _capture_state(self, kind: str) -> tuple[bytes, str]:
+        try:
+            # Chrome sets this on the document it restored after a discard.
+            restored = self.page.locator(":root").evaluate(
+                "() => document.wasDiscarded ? performance.timeOrigin : null", timeout=1500)
+        except PlaywrightTimeout:
+            restored = None
+        discard = (self.page, restored)
+        if restored is not None and discard != self._seen_discard:
+            self._seen_discard = discard
+            return b"", "Chrome reported a restored discard"
+        return self._viewport(kind)
+
+    def _reload_for_capture(self, url: str, reason: str) -> bool:
+        page = self.page
+        session = page.context.new_cdp_session(page)
+        started = time.monotonic()
+        try:
+            loader = session.send("Page.getFrameTree")["frameTree"]["frame"]["loaderId"]
+            if page.url != url:
+                raise ActionFailure("miss", "The page navigated during capture.")
+            protected = page is self._course_popup or any(_player_address(f.url) for f in page.frames)
+            for frame in page.frames:
+                if protected:
+                    break
+                # Query each origin in its own frame. A black media frame can be genuine.
+                protected = frame.locator(":root").evaluate("""root =>
+                    !!(window.API || window.API_1484_11 || root.querySelector('video,audio'))""", timeout=1500)
+            if protected:
+                self.log.write("capture_preserved", reason, "ok", (time.monotonic() - started) * 1000,
+                               detail="Kept the signed launch, course popup or media player in place.")
+                return False
+            with page.expect_event("framenavigated", predicate=lambda f: f == page.main_frame, timeout=8000):
+                # Chrome rejects this reload if navigation replaced the inspected document.
+                session.send("Page.reload", {"loaderId": loader})
+            page.wait_for_load_state("domcontentloaded", timeout=8000)
+            self.log.write("capture_reload", reason, "ok", (time.monotonic() - started) * 1000)
+            return True
+        except Error as error:
+            raise ActionFailure("miss", f"{reason}. Could not safely reload the inspected document.") from error
+        finally:
+            session.detach()
+
     def shot(self, path: Path) -> Outcome:
         path = Path(path)
         def capture():
+            kind = {".png": "png", ".jpg": "jpeg", ".jpeg": "jpeg"}.get(path.suffix.lower())
+            if kind is None:
+                raise ValueError("Use a PNG or JPEG screenshot path.")
+            key = (self.page, self.page.url)
+            started = time.monotonic()
+            data, reason = self._capture_state(kind)
+            if reason == "screenshot timed out":
+                self.log.write("capture_retry", reason, "miss", (time.monotonic() - started) * 1000)
+                data, reason = self._capture_state(kind)
+                if reason == "screenshot timed out":
+                    raise ActionFailure("miss", "Viewport capture timed out twice.")
+            if reason:
+                if self._capture_retry == key:
+                    raise ActionFailure("miss", f"{reason}. Capture recovery was already attempted.")
+                self._capture_retry = key
+                reloaded = self._reload_for_capture(key[1], reason)
+                if not reloaded and reason == "blank viewport":
+                    raise ActionFailure("miss", f"{reason}. Kept the player in place.")
+                data, reason = self._viewport(kind)
+                if reason:
+                    raise ActionFailure("miss", f"{reason} on the recovery capture.")
             path.parent.mkdir(parents=True, exist_ok=True)
-            self.page.screenshot(path=str(path), full_page=False, timeout=5000)
+            stream = tempfile.NamedTemporaryFile(dir=path.parent, delete=False)
+            temporary = Path(stream.name)
+            try:
+                with stream:
+                    stream.write(data)
+                temporary.replace(path)
+            finally:
+                temporary.unlink(missing_ok=True)
+            self._capture_retry = None
             return str(path)
         return self._action("shot", path.name, capture)
 

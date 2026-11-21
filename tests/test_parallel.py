@@ -1,4 +1,4 @@
-"""Run the five Windows proofs against Toucan Chrome and disposable local surfaces."""
+"""Exercise parallel use and capture recovery against disposable local surfaces."""
 
 import contextlib
 import ctypes
@@ -16,6 +16,7 @@ import uuid
 from ctypes import wintypes
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
+from unittest.mock import patch
 
 if sys.platform != "win32":
     raise unittest.SkipTest("The parallel-use proof requires Windows.")
@@ -24,15 +25,15 @@ import win32api
 import win32con
 import win32gui
 import win32process
-from playwright.sync_api import sync_playwright
+from playwright.sync_api import TimeoutError as PlaywrightTimeout, sync_playwright
 
 if __name__ == "__main__":
     sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from tools.browser.attach import attach
-from tools.browser.driver import Driver, RunLog, cursor_position
+from tools.browser.driver import Driver, Outcome, RunLog, cursor_position
 from tools.browser.launch import launch, verify_owner
-from tools.browser.run import run, verify_after_play
+from tools.browser.run import run, run_loop, verify_after_play
 
 
 VIDEO = Path(__file__).with_name("fixtures") / "loop.webm"
@@ -109,6 +110,17 @@ class Notepad:
         self.cursor = cursor_position()
         self.parked = None
 
+    def scratch_point(self):
+        """Find a point currently owned by the named document, including during a resize."""
+        if self.file.stem not in win32gui.GetWindowText(self.hwnd):
+            return None
+        _, _, width, height = win32gui.GetClientRect(self.hwnd)
+        for x, y in ((.5, .5), (.2, .4), (.8, .4), (.25, .75), (.75, .75)):
+            point = win32gui.ClientToScreen(self.hwnd, (int(width * x), int(height * y)))
+            if win32gui.GetAncestor(win32gui.WindowFromPoint(point), 2) == self.hwnd:
+                return point
+        return None
+
     def __enter__(self):
         win32api.ShellExecute(0, "open", str(Path(os.environ["SYSTEMROOT"]) / "System32/notepad.exe"),
                               subprocess.list2cmdline([str(self.file)]), None, win32con.SW_SHOWNORMAL)
@@ -123,15 +135,21 @@ class Notepad:
             return matches[0] if len(matches) == 1 else None
         self.hwnd = wait_for(scratch_window, 12)
         win32gui.ShowWindow(self.hwnd, win32con.SW_SHOWMAXIMIZED)
+        if not self.active():
+            try:
+                win32gui.SetForegroundWindow(self.hwnd)
+            except win32gui.error:
+                pass  # Foreground permission can belong to another process.
         if win32gui.GetForegroundWindow() != self.hwnd:
             # Simulate the owner selecting this scratch editor during fixture setup.
             flags = win32con.SWP_NOMOVE | win32con.SWP_NOSIZE | win32con.SWP_NOACTIVATE
             win32gui.SetWindowPos(self.hwnd, win32con.HWND_TOPMOST, 0, 0, 0, 0, flags)
             try:
-                x1, y1, x2, y2 = win32gui.GetWindowRect(self.hwnd)
-                self.parked = ((x1 + x2) // 2, (y1 + y2) // 2)
+                self.parked = wait_for(self.scratch_point)
                 win32api.SetCursorPos(self.parked)
-                wait_for(lambda: win32gui.GetAncestor(win32gui.WindowFromPoint(self.parked), 2) == self.hwnd)
+                if (cursor_position() != self.parked or self.file.stem not in win32gui.GetWindowText(self.hwnd)
+                        or win32gui.GetAncestor(win32gui.WindowFromPoint(self.parked), 2) != self.hwnd):
+                    raise AssertionError("Scratch Notepad moved before fixture activation.")
                 win32api.mouse_event(win32con.MOUSEEVENTF_LEFTDOWN, 0, 0)
                 win32api.mouse_event(win32con.MOUSEEVENTF_LEFTUP, 0, 0)
             finally:
@@ -149,8 +167,7 @@ class Notepad:
 
     def park_cursor(self):
         self.require_active()
-        x1, y1, x2, y2 = win32gui.GetWindowRect(self.hwnd)
-        self.parked = ((x1 + x2) // 2, (y1 + y2) // 2)
+        self.parked = wait_for(self.scratch_point)
         win32api.SetCursorPos(self.parked)
         hit = win32gui.WindowFromPoint(self.parked)
         assert win32gui.GetAncestor(hit, 2) == self.hwnd
@@ -207,6 +224,20 @@ class Pages(BaseHTTPRequestHandler):
                       <output id="count">0</output>"""
         elif self.path == "/nested":
             body = '<button onclick="this.textContent=\'Frame clicked\'">Inside frame</button>'
+        elif self.path == "/blank-until-reload":
+            body = """<body><script>
+                if (performance.getEntriesByType('navigation')[0].type === 'reload')
+                    document.body.append('Restored viewport');
+                </script>"""
+        elif self.path in {"/blank", "/courses/1/assignments/2"}:
+            body = ""
+        elif self.path == "/embedded-course":
+            body = f'<iframe style="border:0" src="{self.server.other}/runtime"></iframe>'
+        elif self.path == "/runtime":
+            body = "<script>window.API_1484_11 = {};</script>"
+        elif self.path == "/black-video":
+            body = """<style>html {background: black} video {filter: brightness(0)}</style>
+                <video muted loop playsinline src="/loop.webm"></video>"""
         elif self.path in {"/frames", "/media"}:
             path = "/nested" if self.path == "/frames" else "/player"
             body = f'<iframe title="Fixture player" allow="autoplay" src="{self.server.other}{path}"></iframe>' + """
@@ -273,6 +304,102 @@ class ParallelBrowser(unittest.TestCase):
 
     def records(self):
         return [json.loads(line) for line in self.log.read_text(encoding="utf-8").splitlines()]
+
+    def test_capture_recovers_blank(self):
+        self.assertTrue(self.driver.goto(self.root + "/blank-until-reload").ok)
+        session = self.page.context.new_cdp_session(self.page)
+        self.addCleanup(session.detach)
+        session.send("Emulation.setFocusEmulationEnabled", {"enabled": False})
+        cover = self.browser.contexts[0].new_page()
+        self.addCleanup(cover.close)
+        self.page.wait_for_function("document.hidden", timeout=5000)
+        image = self.folder / "viewport.png"
+        result = self.driver.shot(image)
+        self.assertTrue(result.ok, result)
+        self.assertTrue(image.read_bytes().startswith(b"\x89PNG"))
+        self.assertEqual(self.page.locator("body").inner_text(), "Restored viewport")
+        cover.close()
+        fresh = self.folder / "viewport.jpg"
+        self.assertTrue(self.driver.shot(fresh).ok)
+        self.assertTrue(fresh.read_bytes().startswith(b"\xff\xd8"))
+        self.assertEqual([r["target"] for r in self.records() if r["action"] == "capture_reload"],
+                         ["blank viewport"])
+
+    def test_capture_bounds_persistent_blank(self):
+        self.assertTrue(self.driver.goto(self.root + "/blank").ok)
+        image = self.folder / "viewport.png"
+        for _ in range(2):
+            self.assertEqual(self.driver.shot(image).result, "miss")
+            self.assertFalse(image.exists())
+        self.assertEqual(sum(r["action"] == "capture_reload" for r in self.records()), 1)
+
+    def test_capture_handles_discard_signal_before_screenshot(self):
+        self.assertTrue(self.driver.goto(self.root + "/counter").ok)
+        # Simulate the flag on one document. The reload and capture use real CDP.
+        self.page.evaluate("Object.defineProperty(document, 'wasDiscarded', {value: true})")
+        calls = []
+        screenshot = self.page.screenshot
+        def record_navigation(**options):
+            calls.append(self.page.evaluate("performance.getEntriesByType('navigation')[0].type"))
+            return screenshot(**options)
+        with patch.object(self.page, "screenshot", side_effect=record_navigation):
+            result = self.driver.shot(self.folder / "viewport.png")
+        self.assertTrue(result.ok, result)
+        self.assertEqual(calls, ["reload"])
+        self.assertEqual([r["target"] for r in self.records() if r["action"] == "capture_reload"],
+                         ["Chrome reported a restored discard"])
+
+    def test_capture_timeout_has_its_own_reason(self):
+        self.assertTrue(self.driver.goto(self.root + "/counter").ok)
+        screenshot = self.page.screenshot
+        attempts = []
+        def timeout_once(**options):
+            attempts.append(options)
+            if len(attempts) == 1:
+                raise PlaywrightTimeout("Fixture timeout")
+            return screenshot(**options)
+        with patch.object(self.page, "screenshot", side_effect=timeout_once):
+            result = self.driver.shot(self.folder / "viewport.png")
+        self.assertTrue(result.ok, result)
+        self.assertEqual([r["target"] for r in self.records() if r["action"] == "capture_retry"],
+                         ["screenshot timed out"])
+        self.assertFalse(any(r["action"] == "capture_reload" for r in self.records()))
+
+    def test_capture_preserves_course_frame_and_popup(self):
+        self.assertTrue(self.driver.goto(self.root + "/embedded-course").ok)
+        self.page.frame_locator("iframe").locator("body").wait_for(state="attached")
+        self.assertEqual(self.driver.shot(self.folder / "course.png").result, "miss")
+        self.assertEqual(self.page.evaluate("performance.getEntriesByType('navigation')[0].type"), "navigate")
+        self.assertTrue(self.driver.goto(self.root + "/courses/1/assignments/2").ok)
+        with self.page.expect_popup() as opened:
+            self.page.evaluate("() => { window.open('/blank') }")
+        popup = opened.value
+        self.addCleanup(popup.close)
+        self.driver.use_popup(popup)
+        popup.wait_for_load_state()
+        self.assertEqual(self.driver.shot(self.folder / "popup.png").result, "miss")
+        self.assertEqual(popup.evaluate("performance.getEntriesByType('navigation')[0].type"), "navigate")
+        self.assertEqual(sum(r["action"] == "capture_preserved" for r in self.records()), 2)
+
+    def test_blank_playing_video_keeps_its_playhead(self):
+        self.assertTrue(self.driver.goto(self.root + "/black-video").ok)
+        self.page.locator("video").evaluate("v => v.play()")
+        self.assertTrue(self.driver.assert_progress(5).ok)
+        self.assertEqual(self.driver.shot(self.folder / "video.png").result, "miss")
+        self.assertTrue(self.driver.assert_progress(5).ok)
+        self.assertEqual(self.page.evaluate("performance.getEntriesByType('navigation')[0].type"), "navigate")
+        self.assertFalse(any(r["action"] == "capture_reload" for r in self.records()))
+
+    def test_capture_failure_does_not_replay_media_or_handoff(self):
+        self.assertTrue(self.driver.goto(self.root + "/counter").ok)
+        task = dict(url=self.page.url, actions=[], native_fallback="Notepad")
+        with patch.object(self.driver, "shot", return_value=Outcome("miss", detail="blank viewport")), \
+                patch("tools.browser.run.time.sleep"), patch("tools.browser.run.decide") as decide:
+            result = run_loop(task, self.driver, self.folder / "transcript.md", self.folder)
+        decide.assert_not_called()
+        self.assertEqual(result.result, "miss")
+        self.assertIn("Three unavailable viewport captures", result.detail)
+        self.assertFalse(any(r["action"] in {"click", "assert_progress", "handoff"} for r in self.records()))
 
     def test_background_click(self):
         self.assertTrue(self.driver.goto(self.root + "/counter").ok)

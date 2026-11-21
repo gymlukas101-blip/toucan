@@ -22,8 +22,14 @@
             : e.matches('input[type=radio],input[type=checkbox]') ? e.type
             : e.matches('textarea, input:not([type]),input[type=text], [contenteditable=true]') ? 'textbox'
             : tag === 'SELECT' ? 'combobox' : e.matches('input[type=range]') ? 'slider' : 'button');
-        if (tag === 'A' && role !== 'button' && !/button|btn|cta/i.test(e.className || '')
-                && (active.length !== 1 || active[0].e !== e)) continue;
+        if (tag === 'A' && role !== 'button' && !/button|btn|cta/i.test(e.className || '')) {
+            // Rise renders its numbered continuation as a standalone control surface.
+            const nextLesson = e.closest('.lesson-nav--next');
+            const sameLessonDocument = e.origin === location.origin && e.pathname === location.pathname
+                && e.search === location.search && /^#\/lessons\/[^/]+$/.test(e.hash);
+            const surface = nextLesson && sameLessonDocument ? active.filter(c => nextLesson.contains(c.e)) : active;
+            if (surface.length !== 1 || surface[0].e !== e) continue;
+        }
         const root = e.getRootNode();
         const referenced = (e.getAttribute('aria-labelledby') || '').split(/\s+/).filter(Boolean)
             .map(id => root.getElementById(id)?.textContent).filter(Boolean).join(' ');

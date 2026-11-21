@@ -19,6 +19,9 @@ evidence and retain rules that cover recurring failures.
   If a Rise menu keeps opening and closing on the same lesson, use the
   numbered next-lesson link in the open player. This took ActWIse from its
   introduction through all nine lessons in the same attempt.
+  DatingWIse displayed 13% after its introduction. Its next-lesson panel held
+  one link to the next lesson in the same player document. Check that panel
+  when the decision menu offers only controls for a finished activity.
 - [L11] Locate a control from the frame before clicking. Video-area controls and
   player chrome are different surfaces. On a question slide, select an answer
   and verify its feedback before using Next. *Why:* CC lives in the video area.
@@ -27,6 +30,9 @@ evidence and retain rules that cover recurring failures.
   Canvas exposed “Take the Survey” as a button. Verify that question fields
   open after activating it, and verify submission on the Modules page. The
   Post-Survey kept its saved answers when its confirmation dialog closed.
+  Bind each survey choice to its question before checking for an answer.
+  DatingWIse used the label “Group of answer choices” for ten different
+  questions. Verify each group separately before offering Submit.
   Inspect the link text on native quiz entry pages. Decisions Part 2 showed
   “Take the Quiz” while the player menu reported zero controls twice.
   Read the explicit role on that link and check for question fields after a

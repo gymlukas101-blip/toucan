@@ -461,6 +461,7 @@ def _perform_item(page, dom, item, player, persist, popups):
                      "or a recorded completion indicator on this exact Canvas item.")
     elif item.get("requirement") == "must_submit":
         goal += (" For a survey, answer every displayed group. Prefer Agree or Satisfied, four out of five. "
+                 "Read what each scale measures. Answer safety scenarios from the situation described. "
                  "Use the question for factual choices and select every applicable checkbox before Submit. "
                  "Verify submission on Canvas. Answer completion attestations affirmatively.")
     task = dict(url=page.url, goal=goal + " A Thank you or exit screen carries no credit.", done_text=done_text, actions=[])

@@ -19,6 +19,12 @@ def mid_positive(choices):
     """Select a labeled, moderately positive scale point or four on a five-point scale."""
     if len(choices) < 3:
         return None
+    question = choices[0].get("question", "")
+    # A high likelihood can mean endorsing an unsafe act. Give situational
+    # and negatively worded questions to the decision step with all options.
+    if re.search(r"\b(?:if|despite|even though|not|never|uncomfortable|unwanted|unsafe|"
+                 r"without consent|pressur\w*|disagree\w*)\b|n['’]t\b", question, re.I):
+        return None
     labels = {s["control_text"].strip().casefold(): s for s in choices}
     for name in ("agree", "satisfied", "confident", "likely", "motivated", "comfortable", "prepared",
                  "somewhat agree", "somewhat satisfied", "mostly agree", "somewhat likely"):

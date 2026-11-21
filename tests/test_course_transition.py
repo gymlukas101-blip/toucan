@@ -138,6 +138,17 @@ class CourseTransitionTests(unittest.TestCase):
         self.page.set_content('<a href="#go">Begin</a><div tabindex="0">Next card</div>')
         self.assertEqual([s["control_text"] for s in self.worker.controls(self.driver)], ["Next card"])
 
+    def test_rise_forward_surface_only_admits_its_sole_same_document_lesson(self):
+        self.page.set_content('<button>Open menu</button><a href="#/lessons/body">Citation</a>'
+            '<div class="lesson-nav--next"><a href="#/lessons/healthy">Lesson 2 - Healthy relationships</a></div>')
+        self.assertEqual([s["control_text"] for s in self.worker.controls(self.driver)],
+                         ["Open menu", "Lesson 2 - Healthy relationships"])
+        section = self.page.locator(".lesson-nav--next")
+        section.locator("a").evaluate("e => e.href='https://example.invalid/#/lessons/other'")
+        self.assertEqual([s["control_text"] for s in self.worker.controls(self.driver)], ["Open menu"])
+        section.evaluate("e => e.innerHTML='<a href=\"#/lessons/a\">A</a><a href=\"#/lessons/b\">B</a>'")
+        self.assertEqual([s["control_text"] for s in self.worker.controls(self.driver)], ["Open menu"])
+
     def test_clicks_open_shadow_controls_and_handler_divs(self):
         self.page.set_content("""<div id=host></div><div onclick="this.textContent='Done'">Reveal</div>
             <script>host.attachShadow({mode:'open'}).innerHTML =
@@ -171,6 +182,16 @@ class CourseTransitionTests(unittest.TestCase):
         self.assertEqual(self.page.locator("input:checked").count(), 3)
         self.worker.record_submit(self.driver, dispatched=True)
         self.assertEqual(self.worker.controls(self.driver), [])
+
+    def test_situational_likelihood_keeps_all_answers_for_a_contextual_decision(self):
+        self.worker.item["requirement"] = "must_submit"
+        self.page.set_content('<fieldset><legend>If a partner seemed uncomfortable, '
+            'how likely would you be to continue?</legend>' + "".join(
+                f'<label><input type=radio name="situation">{option}</label>'
+                for option in ("Very likely", "Likely", "Neutral", "Unlikely", "Very unlikely")) + '</fieldset>')
+        choices = self.worker.controls(self.driver)
+        self.assertEqual(len(choices), 5)
+        self.assertFalse(any(step.get("survey_preference") for step in choices))
 
     def test_repeated_canvas_answer_group_labels_keep_questions_separate(self):
         self.worker.item["requirement"] = "must_submit"

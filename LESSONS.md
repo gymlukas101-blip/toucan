@@ -63,6 +63,8 @@ evidence and retain rules that cover recurring failures.
 - [L06] Diagnose screenshot timeouts and blank viewports separately from playback.
   An unused background tab timed out during the Module 2 dry run. A video
   stall requires an observation of the playhead in the player frame.
+  After reloading an ordinary hidden tab, capture its viewport offscreen.
+  The background test page had restored its text while its window capture timed out.
 - [L12] A background Canvas launch button can fail Playwright's stability check
   while visible and enabled. A page-scoped forced click opened Module 3 after
   the ordinary click missed. The Storyline player used audio elements, and

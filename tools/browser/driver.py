@@ -1,5 +1,6 @@
 """Page-scoped input, observations and an append-only run log."""
 
+import base64
 import ctypes
 import json
 import math
@@ -333,12 +334,27 @@ class Driver:
             self._course_popup = page
         self.page = page
 
-    def _viewport(self, kind: str) -> tuple[bytes, str]:
+    def _viewport(self, kind: str, *, background_recovery: bool = False) -> tuple[bytes, str]:
         time.sleep(max(0, self._next_viewport - time.monotonic()))
         self.check_player()
         self._next_viewport = time.monotonic() + 10
         try:
-            data = self.page.screenshot(type=kind, full_page=False, timeout=5000)
+            if background_recovery:
+                # A hidden tab can finish reloading without repainting its window surface.
+                # Ask Chrome to rasterize just this tab's visible viewport offscreen.
+                session = self.page.context.new_cdp_session(self.page)
+                try:
+                    view = session.send("Page.getLayoutMetrics", timeout=5000)["cssVisualViewport"]
+                    clip = dict(x=view["pageX"], y=view["pageY"], width=view["clientWidth"],
+                                height=view["clientHeight"], scale=view["scale"])
+                    capture = session.send("Page.captureScreenshot", {
+                        "format": kind, "clip": clip, "captureBeyondViewport": True,
+                    }, timeout=5000)
+                    data = base64.b64decode(capture["data"])
+                finally:
+                    session.detach()
+            else:
+                data = self.page.screenshot(type=kind, full_page=False, timeout=5000)
         except PlaywrightTimeout:
             return b"", "screenshot timed out"
         with Image.open(BytesIO(data)) as image:
@@ -417,7 +433,8 @@ class Driver:
                 reloaded = self._reload_for_capture(key[1], reason)
                 if not reloaded and reason == "blank viewport":
                     raise ActionFailure("miss", f"{reason}. Kept the player in place.")
-                data, reason = self._viewport(kind)
+                hidden = reloaded and self.page.evaluate("document.hidden")
+                data, reason = self._viewport(kind, background_recovery=hidden)
                 if reason:
                     raise ActionFailure("miss", f"{reason} on the recovery capture.")
             path.parent.mkdir(parents=True, exist_ok=True)

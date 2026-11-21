@@ -317,6 +317,8 @@ class ParallelBrowser(unittest.TestCase):
         result = self.driver.shot(image)
         self.assertTrue(result.ok, result)
         self.assertTrue(image.read_bytes().startswith(b"\x89PNG"))
+        self.assertTrue(self.page.evaluate("document.hidden"))
+        self.assertFalse(cover.evaluate("document.hidden"))
         self.assertEqual(self.page.locator("body").inner_text(), "Restored viewport")
         cover.close()
         fresh = self.folder / "viewport.jpg"

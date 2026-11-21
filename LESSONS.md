@@ -1,0 +1,28 @@
+# Lessons
+
+Rules from real runs. Read before every run. If a rule proves wrong, fix or
+retire it in the same change and say why.
+
+## Answering
+
+- When the transcript is silent on an in-video checkpoint, use the question's
+  framing and domain knowledge. Stop on a graded question only if it remains
+  ambiguous after that attempt. *Why:* “Every sexual assault has one thing in
+  common:” had one definitional answer. The previous rule paused the run until
+  the user supplied it.
+- Start caption capture on the first frame, before pressing play. Keep it
+  active as each slide opens. *Why:* Module 2 lost opening narration. Seven
+  in-video answers used domain knowledge, including the first checkpoint.
+  [Caption coverage and answer record](report.md)
+
+## Pacing
+
+- Submit completion modules once. Reserve a retake for graded work. *Why:*
+  Module 2 estimated 30–35 minutes, and Canvas awarded full completion credit
+  on the first submission.
+
+## Paths and identity
+
+- Verify the Windows profile path before writing. *Why:* the GitHub account
+  is gymlukas101-blip and the Windows profile is gymlu. Checking the proposed
+  gymluka path caught the mismatch before the rules were written.

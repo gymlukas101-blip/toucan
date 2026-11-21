@@ -84,6 +84,7 @@ Updated: 2026-11-21
 | 2026-11-21 | 3–4 Canvas completion check | 6.58s | - | - | 3/3/0 | 0 | 0 | 0 | - |
 | 2026-11-21 | 3 rerun and grade verification | 43m45s | - | 87 | 217/284/0 | 3 | 1 | 0 | 100% |
 | 2026-11-21 | 4 and Post-Survey DOM plan | 4.46s | - | 0 | 2/2/0 | 0 | 0 | 0 | - |
+| 2026-11-21 | 4 and Post-Survey through handoff | 1h29m42s | - | 12 | 309/94/0 | 23 | 0 | 0 | Module 4 100% |
 
 Populate from run.jsonl after each run. Use a dash for unavailable measurements.
 The Module 3 rerun counts the 87 decisions and 501 logged actions through
@@ -95,9 +96,9 @@ answers, first-pass score and zero retakes.
 
 ## Open
 
-- In course 532511, Module 4 unlocked after Module 3 posted. Its row shows
-  “Score at least 100.0”. The Post-Survey remains locked. The Module 3 rerun
-  stopped after verifying its own grade.
+- In course 532511, Canvas shows “Scored at least 100.0” on Module 4.
+  The Post-Survey unlocked and its answers were saved. The last Modules read
+  showed “Submit”. Queue exit 3 preserved the survey attempt for handoff.
 - Toucan lives at `C:\Users\gymlu\OneDrive\Documents\Toucan`. A later move
   to `C:\Users\gymlu\school` remains optional.
 

@@ -21,6 +21,9 @@ evidence and retain rules that cover recurring failures.
   and verify its feedback before using Next. *Why:* CC lives in the video area.
   In Module 3, Next repeated a response-required alert. Choosing a displayed
   answer advanced the same reflection on the rerun.
+  Canvas exposed “Take the Survey” as a button. Verify that question fields
+  open after activating it, and verify submission on the Modules page. The
+  Post-Survey kept its saved answers when its confirmation dialog closed.
 - [L13] Convert screenshot pixels to page coordinates before a positional click.
   *Why:* Windows display scaling made the first CC click miss its target.
 - [L14] Bind the course after its launch redirects settle. An embedded video

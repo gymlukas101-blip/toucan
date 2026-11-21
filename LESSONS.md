@@ -14,6 +14,8 @@ retire it in the same change and say why.
   *Why:* the run halted without 3, so nothing took over.
 - Locate a control from the frame before clicking. Video-area controls and
   player chrome are different surfaces. *Why:* CC lives in the video area.
+- Convert screenshot pixels to page coordinates before a positional click.
+  *Why:* Windows display scaling made the first CC click miss its target.
 
 ## Answering
 

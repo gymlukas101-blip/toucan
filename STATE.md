@@ -85,8 +85,15 @@ Updated: 2026-11-21
 | 2026-11-21 | 3 rerun and grade verification | 43m45s | - | 87 | 217/284/0 | 3 | 1 | 0 | 100% |
 | 2026-11-21 | 4 and Post-Survey DOM plan | 4.46s | - | 0 | 2/2/0 | 0 | 0 | 0 | - |
 | 2026-11-21 | 4 and Post-Survey through handoff | 1h29m42s | - | 12 | 309/94/0 | 23 | 0 | 0 | Module 4 100% |
+| 2026-11-21 | Decisions Parts 1 and 2 | 5m35s | - | 3 | 22/24/0 | 0 | 3 | 0 | No posted score |
+| 2026-11-21 | Free Expression pages and quiz entry | 8m38s | - | 0 | 127/56/0 | 0 | 1 | 0 | 12 pages viewed, quiz unscored |
+| 2026-11-21 | GetWIse, ActWIse track | 2h3m27s | - | 21 | 516/189/0 | 72 | 0 | 0 | Program 100%, surveys 10/10 each, certification 1/1 |
+| 2026-11-21 | StandUp to Hazing launch | 1m54s | - | 3 | 10/15/0 | 0 | 0 | 0 | No submission, out of 100 |
 
 Populate from run.jsonl after each run. Use a dash for unavailable measurements.
+The stalls column counts actions logged with the result `stall`. StandUp's
+queue reached its consecutive-stall limit after a wait and two clicks logged
+as `miss`.
 The Module 3 rerun counts the 87 decisions and 501 logged actions through
 the Canvas grade read. An additional screenshot captured the settled score dial.
 Module 2 predates run.jsonl. Its tier mix and single stall come from the

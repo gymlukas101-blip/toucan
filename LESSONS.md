@@ -16,6 +16,9 @@ evidence and retain rules that cover recurring failures.
 - [L10] If work stops while the item is still active, hand off with code 3.
   A silent stop strands the caller.
   *Why:* the run halted without 3, so nothing took over.
+  If a Rise menu keeps opening and closing on the same lesson, use the
+  numbered next-lesson link in the open player. This took ActWIse from its
+  introduction through all nine lessons in the same attempt.
 - [L11] Locate a control from the frame before clicking. Video-area controls and
   player chrome are different surfaces. On a question slide, select an answer
   and verify its feedback before using Next. *Why:* CC lives in the video area.
@@ -24,6 +27,10 @@ evidence and retain rules that cover recurring failures.
   Canvas exposed “Take the Survey” as a button. Verify that question fields
   open after activating it, and verify submission on the Modules page. The
   Post-Survey kept its saved answers when its confirmation dialog closed.
+  Inspect the link text on native quiz entry pages. Decisions Part 2 showed
+  “Take the Quiz” while the player menu reported zero controls twice.
+  Read the explicit role on that link and check for question fields after a
+  click. Free Expression used `role="button"` and stayed on its entry page.
 - [L13] Convert screenshot pixels to page coordinates before a positional click.
   *Why:* Windows display scaling made the first CC click miss its target.
 - [L14] Bind the course after its launch redirects settle. An embedded video
@@ -72,6 +79,9 @@ evidence and retain rules that cover recurring failures.
   while visible and enabled. A page-scoped forced click opened Module 3 after
   the ordinary click missed. The Storyline player used audio elements, and
   the video-only caption sampler recorded no captions in this run.
+  If nested frames share a name, locate the visible launch button in its
+  own frame. StandUp had two frames named `ScormContent`. Only the inner
+  frame displayed “Launch Course”, and both name-based clicks missed.
 - [L07] Read the requirement label and the title link separately. Module 3 and
   Module 4 both showed “Score at least 100.0”. Only Module 3 had a link.
   Keep a requested locked item in the plan by its row ID until its link opens.

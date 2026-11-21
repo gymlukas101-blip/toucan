@@ -173,3 +173,15 @@ Canvas dated the submission “Nov 20 at 6:58pm.” While I waited for the autom
 **Power settings.** At 7:01:04 p.m. Central, the active Windows power plan showed an AC display timeout of 900 seconds (15 minutes) and an AC standby timeout of 1,800 seconds (30 minutes).
 
 **Transcript limitation.** The 597 captured caption lines have the two early gaps documented above. Seven in-video answers are marked `domain` in the answer record. The quiz score, Canvas grade, and Module 3 destination were all verified.
+
+## November 21 coursework
+
+| Course | Final queue exit | Canvas result and reason for stopping |
+|---|---:|---|
+| U Got This! | 3 | Module 4 scored 100%. The Post-Survey answers were saved. Its submission confirmation closed, the Modules row still showed “Submit”, and Computer Use could not verify the browser URL during handoff. |
+| Fall 2026 Decisions | 2 | Part 1 stayed on its introduction for three polls. Part 2 displayed “Take the Quiz”, but the runner found zero controls twice. Neither part posted a score. |
+| Fall 2026 Free Expression | 2 | All 12 pages showed “Viewed”. The runner first looked for the wrong role on “Take the Quiz”. After the role was corrected, its click still left the quiz on the entry page. Canvas still required 9/11. |
+| GetWIse for New Students | 0 | Completed ActWIse, the first of four alternative tracks. The program scored 100%, both surveys scored 10/10, and certification scored 1/1. Canvas confirmed all five rows after a same-player handoff. |
+| StandUp to Hazing | 2 | The external tool displayed “Popup Blocked”. Two nested frames shared the name `ScormContent`. The runner missed “Launch Course” twice, and Canvas still showed “No Submission” for the 100-point assignment. |
+
+The AC display timeout was restored to 15 minutes and AC standby to 30 minutes. Both values were verified on the active Windows power plan.

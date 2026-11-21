@@ -44,6 +44,8 @@ def parse_rows(snapshot, course_id):
         if url and (parts.scheme not in {"https", "http"} or not parts.hostname or parts.username or parts.password):
             raise ValueError(f"Unexpected link on module row: {title}")
         req = requirement(label, raw["check"])
+        if "points" in raw and raw["check"]:
+            req = "must_submit"
         if raw["header"]:
             state = "instruction"
         elif raw["locked"]:
@@ -57,6 +59,8 @@ def parse_rows(snapshot, course_id):
             state = "pending"
         rows.append(dict(key=key, title=title, url=url, group=raw["group"], kind=raw["kind"],
                          label=label, requirement=req, state=state))
+        if "points" in raw:
+            rows[-1]["points"] = raw["points"]
     return rows
 
 
@@ -85,6 +89,7 @@ class CanvasDOM:
         self.log = RunLog(self.run_dir / "run.jsonl")
         self.snapshots = []
         self._verification_pages = {}
+        self._listing_kinds = {}
         self.ended_targets = set()
 
     def _page(self, path, *, courses=False):
@@ -120,9 +125,9 @@ class CanvasDOM:
         started = time.monotonic()
         driver = Driver(page, self.log)
         if refresh:
-            if not re.fullmatch(re.escape(ORIGIN) + r"/courses/[0-9]+/modules/?", page.url):
-                raise ValueError("Refresh requires the course Modules listing.")
-            before = driver.shot(self.run_dir / "before-modules-refresh.png")
+            if not re.fullmatch(re.escape(ORIGIN) + r"/courses/[0-9]+/(?:modules|assignments)/?", page.url):
+                raise ValueError("Refresh requires a Canvas course listing.")
+            before = driver.shot(self.run_dir / f"before-{kind}-refresh.png")
             if not before.ok:
                 raise RuntimeError(before.detail)
             reopened = driver.goto(page.url)
@@ -135,8 +140,26 @@ class CanvasDOM:
             raise RuntimeError("The Toucan profile needs manual Canvas sign-in.")
         if not page.url.startswith(ORIGIN + "/"):
             raise RuntimeError("The listing left Canvas.")
-        if kind == "modules" and urlsplit(page.url).path.rstrip("/") != "/courses/" + name + "/modules":
-            raise RuntimeError("Canvas did not display the requested Modules page.")
+        if kind in {"modules", "assignments"}:
+            path = urlsplit(page.url).path.rstrip("/")
+            if path != f"/courses/{name}/{kind}":
+                if kind != "modules" or path != f"/courses/{name}":
+                    raise RuntimeError("Canvas did not display the requested course listing.")
+                kind = "navigation"
+        if kind == "assignments":
+            page.wait_for_function("""() => document.querySelector(
+                'li.assignment, .assignment-row, [data-testid="assignment-row"], .ig-header [aria-expanded]')
+                || /no assignments|there aren.t any assignments/i.test(document.body.innerText)""", timeout=10000)
+            # Past and overdue groups can arrive collapsed even when they contain work.
+            toggles = page.locator(':is(#content, main) .ig-header [aria-expanded]:visible, '
+                                  ':is(#content, main) :is(h2,h3) [aria-controls][aria-expanded]:visible')
+            for toggle in toggles.all():
+                if toggle.get_attribute("aria-expanded") == "false":
+                    toggle.evaluate("e => e.click()")
+                    if toggle.get_attribute("aria-expanded") == "false":
+                        raise ValueError("An Assignments group stayed collapsed.")
+            if not driver.settle().ok:
+                raise RuntimeError("The Assignments listing did not settle.")
         stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%S%fZ")
         path = self.run_dir / f"{kind}-{name}-{stamp}.json"
         snapshot = page.locator("body").evaluate(SNAPSHOT, kind)
@@ -161,7 +184,8 @@ class CanvasDOM:
         course_id = str(course_id)
         if not re.fullmatch(r"[0-9]+", course_id):
             raise ValueError("Canvas course ID must be numeric.")
-        path = f"/courses/{course_id}/modules"
+        kind = self._listing_kinds.get(course_id, "modules")
+        path = f"/courses/{course_id}/{kind}"
         if refresh:
             # The expired popup may itself have redirected to this exact Modules URL.
             # Verify in a listing tab we opened, and reuse it on later items.
@@ -171,10 +195,21 @@ class CanvasDOM:
                 page = self._verification_pages[course_id] = self._open_listing(path)
         else:
             page, opened = self._page(path)
-        snapshot = self._snapshot(page, "modules", course_id, refresh=refresh and not opened)
+        snapshot = self._snapshot(page, kind, course_id, refresh=refresh and not opened)
+        if kind == "modules" and not snapshot.get("rows") and snapshot.get("assignmentsLink"):
+            path = snapshot["assignmentsLink"]
+            if path.rstrip("/") != f"/courses/{course_id}/assignments":
+                raise ValueError("Assignments navigation left the selected course.")
+            page = self._open_listing(path)
+            snapshot = self._snapshot(page, "assignments", course_id)
+            self._listing_kinds[course_id] = "assignments"
+            if refresh:
+                self._verification_pages[course_id] = page
+        if "rows" not in snapshot:
+            raise ValueError("Canvas displayed neither Modules nor an Assignments navigation link.")
         collapsed = [s["title"] for s in snapshot["sections"] if s["collapsed"]]
         if collapsed:
             raise ValueError("The visible list is incomplete. Collapsed sections: " + ", ".join(collapsed))
         if not snapshot["rows"] and not snapshot["empty"]:
-            raise ValueError("The Modules page contains no visible item rows. Check the saved snapshot.")
+            raise ValueError("The course listing contains no visible item rows. Check the saved snapshot.")
         return parse_rows(snapshot, course_id)

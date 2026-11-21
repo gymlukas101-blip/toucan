@@ -9,12 +9,21 @@ from unittest.mock import Mock, patch
 
 from tasks.queue import load, save
 from tools.browser.captions import CaptionSampler
-from tools.browser.driver import Outcome, RunLog
+from tools.browser.driver import Driver, Outcome, RunLog
 from tools.browser.run import run_loop
 from tools.canvas.runner import ComputerHandoff, canvas_command, walk_queue
 
 
 class CaptionAndHandoffTests(unittest.TestCase):
+    def test_handoff_records_the_current_public_driver_url(self):
+        with tempfile.TemporaryDirectory() as folder:
+            log = RunLog(Path(folder) / "run.jsonl")
+            driver = Driver(Mock(url="https://player.example/course?example=private#slide"), log)
+            self.assertEqual(driver.handoff_url(), "https://player.example/course")
+            record = json.loads(log.path.read_text())
+            self.assertEqual(record["url"], "https://player.example/course")
+            self.assertNotIn("private", json.dumps(record))
+
     def test_sampler_writes_while_decision_is_blocked_and_deduplicates(self):
         with tempfile.TemporaryDirectory() as folder:
             path = Path(folder) / "transcript.md"
@@ -74,6 +83,13 @@ class CaptionAndHandoffTests(unittest.TestCase):
         with patch("tools.browser.run._run_loop", side_effect=check_progress):
             result = run_loop({}, driver, Path("unused"), Path("unused"), course_item=worker)
         self.assertEqual(result.result, "handoff")
+        driver.handoff_url.assert_called_once_with()
+        worker.item = {"title": "Post-Survey", "requirement": "must_submit"}
+        driver.assert_progress.side_effect = [Outcome("stall"), Outcome("stall")]
+        with patch("tools.browser.run._run_loop", side_effect=check_progress):
+            result = run_loop({}, driver, Path("unused"), Path("unused"), course_item=worker)
+        self.assertEqual(result.result, "blocked")
+        driver.handoff_url.assert_called_once_with()
 
 
 if __name__ == "__main__":

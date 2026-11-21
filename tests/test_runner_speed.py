@@ -4,6 +4,7 @@ import sys
 import tempfile
 import time
 import unittest
+from contextlib import contextmanager
 from pathlib import Path
 from unittest.mock import Mock, patch
 
@@ -11,7 +12,9 @@ from PIL import Image
 
 from tools.browser.driver import Outcome, RunLog
 from tools.browser.observation import write_observation
-from tools.browser.run import DECISION_SECONDS, decide, fast_button, read_transcript, run_loop
+from playwright.sync_api import TimeoutError as PlaywrightTimeout
+from tools.browser.launch import allow_course_popups
+from tools.browser.run import DECISION_SECONDS, click_popup, decide, fast_button, read_transcript, run_loop
 
 
 def status(action):
@@ -60,6 +63,26 @@ class RunnerSpeedTests(unittest.TestCase):
         self.model.assert_called_once()
         fast, = [e for e in self.events() if e["action"] == "fast-path"]
         self.assertEqual((fast["tier"], fast["rule_used"]), ("T0", "L15"))
+
+    def test_popup_retries_once_and_blocks_without_an_event(self):
+        @contextmanager
+        def no_popup(*, timeout):
+            self.assertEqual(timeout, 5000)
+            yield Mock()
+            raise PlaywrightTimeout("No popup event")
+        self.driver.page.expect_popup.side_effect = no_popup
+        step = dict(target="Launch Course")
+        with patch("tools.browser.run.dispatch", return_value=Outcome("ok")) as click, \
+             patch("tools.browser.run.hard_block", return_value=""):
+            answer = click_popup(self.driver, "click", step, self.folder)
+        self.assertEqual((answer.result, click.call_count), ("blocked", 2))
+        self.assertEqual([e["result"] for e in self.events()], ["popup-blocked", "popup-blocked"])
+        prefs = self.folder / "Default" / "Preferences"
+        prefs.parent.mkdir()
+        prefs.write_text('{"profile":{"other":"preserved"}}', encoding="utf-8")
+        allow_course_popups(self.folder)
+        self.assertEqual(json.loads(prefs.read_text())["profile"],
+                         {"other": "preserved", "default_content_setting_values": {"popups": 1}})
 
     def test_only_a_unique_non_answer_button_in_the_menu_qualifies(self):
         menu = self.task["actions"]

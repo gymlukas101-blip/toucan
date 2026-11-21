@@ -16,7 +16,7 @@ from urllib.parse import urlsplit
 if not __package__:
     sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
-from playwright.sync_api import Error, sync_playwright
+from playwright.sync_api import Error, TimeoutError as PlaywrightTimeout, sync_playwright
 
 from tools.browser.attach import attach
 from tools.browser.driver import Driver, Outcome, RunLog, public_url
@@ -103,7 +103,7 @@ def decide(task, capture: Path, frames, transcript, *, domain_attempt=False, les
     # A child inheriting a pipe can delay Windows timeout cleanup. Keep the
     # event stream in a file so the runner can return as soon as Codex is killed.
     with tempfile.TemporaryFile(mode="w+", encoding="utf-8") as events:
-        remaining = deadline - time.monotonic()
+        remaining = min(DECISION_SECONDS, deadline - time.monotonic())
         if remaining <= 0:
             raise subprocess.TimeoutExpired("codex exec", DECISION_SECONDS)
         result = subprocess.run(args, cwd=capture, input=prompt, text=True, encoding="utf-8",
@@ -157,7 +157,7 @@ def fast_button(frames, steps):
         label = locator.get("name") or locator.get("label") or locator.get("text")
         if (step["action"] in {"click", "play"} and not step.get("is_answer")
                 and not step.get("prompt") and locator.get("role", "button") == "button" and label == name
-                and locator.get("frame") in (None, frame.get("name"), frame.get("url"))):
+                and locator.get("frame") in (None, frame.get("key"), frame.get("name"), frame.get("url"))):
             matches.append(step)
     return matches[0] if len(matches) == 1 else None
 
@@ -233,10 +233,11 @@ def validate_task(task):
         seen.add(key)
 
 
-def native_handoff(log, target):
+def native_handoff(log, target, driver=None):
     warning = "Computer Use requires the foreground. This run is no longer background-safe."
     print(warning, file=sys.stderr)
-    log.write("handoff", target, "escalate", 0, driver="computer", tier="T1", detail=warning)
+    address = driver.handoff_url() if driver else None
+    log.write("handoff", target, "escalate", 0, driver="computer", tier="T1", detail=warning, url=address)
     return Outcome("escalate", target, warning)
 
 
@@ -310,13 +311,59 @@ def run_loop(task, driver, transcript_path, capture, *, course_item=None):
                     driver.log.write("lesson-changed", course_item.item["title"], "ok", 0, detail=str(transition))
                 except Handoff:
                     driver.check_player()
-                    return Outcome("handoff", detail="stall")
+                    if course_item.item.get("requirement") == "must_submit" and (course_item.item.get("survey")
+                            or re.search(r"\bsurvey\b", course_item.item.get("title", ""), re.I)):
+                        return Outcome("blocked", detail="Survey playback stalled before submission.")
+                    return Outcome("handoff", value=driver.handoff_url(), detail="stall")
     except PlayerEnded as end:
         return Outcome("item-ended", detail=str(end))
     finally:
         course_item.remember_popup = original_popup
         driver.assert_progress = original_progress
         driver.player_watch = None
+
+
+def click_popup(driver, action, step, capture):
+    source = driver.page
+    received = []
+    def listener(page):
+        received.append(page)
+    source.on("popup", listener)
+    try:
+        for attempt in range(2):
+            if attempt:
+                shot = driver.shot(capture / "viewport.png")
+                if not shot.ok:
+                    return shot
+                driver.check_player()
+                if reason := hard_block(driver):
+                    return Outcome("aborted", detail=reason)
+            if received:
+                return Outcome("ok", received[0])
+            result = Outcome("miss")
+            try:
+                with source.expect_popup(timeout=5000) as opened:
+                    result = dispatch(driver, action, step, retry_play=False)
+                return Outcome("ok", opened.value)
+            except PlaywrightTimeout:
+                if result.result == "aborted":
+                    return result
+                driver.log.write("popup-blocked", step["target"], "popup-blocked", 5000, tier="T1",
+                                 detail=f"No popup event on attempt {attempt + 1}.")
+        return Outcome("blocked", detail="No course popup opened after two launch attempts.")
+    finally:
+        source.remove_listener("popup", listener)
+
+
+def bind_popup(driver, page, course_item, origins):
+    driver.use_popup(page)
+    if course_item:
+        page.wait_for_url(re.compile(r"^https?://"), timeout=15000)
+    page.wait_for_load_state("domcontentloaded", timeout=15000)
+    if course_item:
+        wait_for_player(page)
+        course_item.remember_popup(page)
+        origins.add(urlsplit(page.url)[:2])
 
 
 def _run_loop(task, driver, transcript_path, capture, *, course_item=None):
@@ -336,6 +383,9 @@ def _run_loop(task, driver, transcript_path, capture, *, course_item=None):
         else:
             time.sleep(delay)
         driver.check_player()
+        if course_item and getattr(course_item, "launch_popups", None) and course_item.player is None:
+            bind_popup(driver, course_item.launch_popups.pop(0), course_item, origins)
+            next_capture = 0
         if course_item and not course_item.at_item(driver.page):
             if course_item.player is driver.page:
                 raise PlayerEnded("The player left the item. Verify completion on Canvas.")
@@ -359,6 +409,9 @@ def _run_loop(task, driver, transcript_path, capture, *, course_item=None):
             continue
         if course_item:
             course_item.observe_quiz(driver, observed.value)
+            if course_item.item.get("survey") and course_item.item.get("quiz", {}).get("submitted"):
+                if course_item.completion_proof(driver, observed.value):
+                    return Outcome("ok", detail="Canvas verified the submitted survey.")
             steps = course_item.controls(driver)
             task = {**task, "actions": steps}
             menu = {(s["action"], s["target"], s.get("text", "")): s for s in steps}
@@ -374,7 +427,7 @@ def _run_loop(task, driver, transcript_path, capture, *, course_item=None):
             stalls += 1
             driver.log.write("poll", "unchanged page", "stall", 0)
             if stalls == 2 and task.get("native_fallback"):
-                return native_handoff(driver.log, task["native_fallback"])
+                return native_handoff(driver.log, task["native_fallback"], driver)
             continue
         start = time.monotonic()
         fast = None
@@ -390,11 +443,18 @@ def _run_loop(task, driver, transcript_path, capture, *, course_item=None):
                 stalls += 1
                 continue
         try:
-            if fast is not None:
+            preference = len(task["actions"]) == 1 and task["actions"][0].get("survey_preference")
+            if preference:
+                choice = task["actions"][0]
+                decision = dict(action="click", target=choice["target"], text="", basis="domain", rule_used=None)
+            elif fast is not None:
                 decision = dict(action=fast["action"], target=fast["target"], text=fast.get("text", ""),
                                 basis="domain", rule_used="L15")
             else:
-                decision = decide(task, capture, observed.value, transcript, domain_attempt=domain_attempt,
+                prompt_task = task
+                if steps_for_question := [s for s in task["actions"] if s.get("question")]:
+                    prompt_task = {**task, "goal": task["goal"] + " Current question: " + steps_for_question[0]["question"]}
+                decision = decide(prompt_task, capture, observed.value, transcript, domain_attempt=domain_attempt,
                                   lessons=driver.log.lessons)
             driver.check_player()
             action, target, text = (decision[k] for k in ("action", "target", "text"))
@@ -418,7 +478,7 @@ def _run_loop(task, driver, transcript_path, capture, *, course_item=None):
             stalls += 1
             continue
         driver.basis = decision["basis"]
-        driver.log.write("fast-path" if fast is not None else "decide", target or action, "ok",
+        driver.log.write("survey-preference" if preference else "fast-path" if fast is not None else "decide", target or action, "ok",
                          (time.monotonic() - start) * 1000, tier="T0" if fast is not None else "T1",
                          basis=driver.basis, rule_used=decision.get("rule_used"))
         if action == "done":
@@ -469,17 +529,23 @@ def _run_loop(task, driver, transcript_path, capture, *, course_item=None):
         if quiz_submit:
             course_item.record_submit(driver, dispatched=False)
         if step.get("opens_popup"):
-            with driver.page.expect_popup(timeout=5000) as opened:
-                result = dispatch(driver, action, step, retry_play=fast is None)
-            if result.ok:
-                driver.use_popup(opened.value)
-                if course_item:
-                    driver.page.wait_for_url(re.compile(r"^https?://"), timeout=15000)
-                driver.page.wait_for_load_state("domcontentloaded", timeout=15000)
-                if course_item:
-                    wait_for_player(driver.page)
-                    course_item.remember_popup(driver.page)
-                    origins.add(urlsplit(driver.page.url)[:2])
+            already_open = course_item and course_item.launch_popups and not course_item.player
+            result = (Outcome("ok", course_item.launch_popups.pop(0)) if already_open
+                      else click_popup(driver, action, step, capture))
+            if not result.ok:
+                return result
+            bind_popup(driver, result.value, course_item, origins)
+        elif quiz_submit and course_item.item.get("survey"):
+            def confirm_submission(dialog):
+                if dialog.type == "confirm" and re.search(r"submit|finish|turn in", dialog.message, re.I):
+                    dialog.accept()
+                else:
+                    dialog.dismiss()
+            driver.page.on("dialog", confirm_submission)
+            try:
+                result = dispatch(driver, action, step, retry_play=False)
+            finally:
+                driver.page.remove_listener("dialog", confirm_submission)
         else:
             result = dispatch(driver, action, step, retry_play=fast is None)
         if quiz_submit and result.ok:
@@ -496,7 +562,7 @@ def _run_loop(task, driver, transcript_path, capture, *, course_item=None):
                 return Outcome("ambiguous", detail="The target remained ambiguous after a domain attempt.")
             domain_attempt = True
         if result.result == "stall" and task.get("native_fallback") and stalls >= 1:
-            return native_handoff(driver.log, task["native_fallback"])
+            return native_handoff(driver.log, task["native_fallback"], driver)
         stalls = 0 if result.ok else stalls + 1
         same_frame = frame if result.ok else None
         driver.settle()

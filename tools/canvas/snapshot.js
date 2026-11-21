@@ -27,6 +27,42 @@
         return {page: location.pathname, heading: document.title, elements: cards.length, cards};
     }
 
+    const coursePath = location.pathname.match(/^\/courses\/\d+/)?.[0];
+    const courseNav = all(body, 'nav a[href], #section-tabs a[href], [role="navigation"] a[href]');
+    const section = name => courseNav.find(a => a.origin === location.origin
+        && a.pathname.replace(/\/$/, '') === coursePath + '/' + name);
+    const assignmentsLink = section('assignments') && !section('modules') ? section('assignments').pathname : '';
+    if (kind === 'navigation') {
+        return {page: location.pathname, elements: courseNav.length, assignmentsLink};
+    }
+    if (kind === 'assignments') {
+        const entries = all(main, 'li.assignment, .assignment-row, [data-testid="assignment-row"]');
+        const rows = [];
+        for (const row of entries) {
+            const link = all(row, 'a[href]').find(a => a.origin === location.origin
+                && a.pathname.match(/^\/courses\/\d+\/assignments\/\d+\/?$/)
+                && a.pathname.startsWith(coursePath + '/assignments/') && text(a));
+            if (!link) continue;
+            const lines = row.innerText.split(/\n+/).map(l => l.trim()).filter(Boolean);
+            const labels = all(row, '[aria-label], [title], img[alt], .submission-status, [data-testid="submission-status"]')
+                .flatMap(e => [value(e, 'aria-label'), value(e, 'title'), value(e, 'alt'), text(e)]);
+            const status = [...labels, ...lines].find(s =>
+                /^(?:submitted|graded|completed|not submitted|no submission|missing|locked)\b(?:$| for this assignment\b)/i.test(s)) || '';
+            const points = text(row).match(/(?:[-–—\d.,]+\s*\/\s*)?(\d[\d,]*(?:\.\d+)?)\s*(?:points? possible|pts?\b)/i);
+            const group = row.closest('.assignment-list, .assignment_group, .ig-list, section');
+            rows.push({id: link.pathname.split('/').filter(Boolean).at(-1), title: text(link),
+                href: link.origin + link.pathname, points: points ? Number(points[1].replace(/,/g, '')) : null,
+                group: headingOfAssignment(group) || 'Assignments', label: status,
+                check: /^(?:submitted|graded|completed)\b/i.test(status),
+                locked: /^locked\b/i.test(status) || row.matches('.locked, [aria-disabled="true"]'),
+                header: false, kind: 'Assignment'});
+        }
+        function headingOfAssignment(group) {
+            return text(group?.querySelector('h2, .ig-header-title, [role=heading]'));
+        }
+        return {page: location.pathname, heading: document.title, elements: rows.length, rows, sections: [],
+            empty: !rows.length && /no assignments|there (?:are|aren’t|aren't) (?:no |any )?assignments/i.test(main.innerText)};
+    }
     const selector = 'li.context_module_item, [data-module-item-id], [data-testid="module-item"]';
     const groups = all(main, '.context_module, [data-testid="module-container"]');
     const groupOf = row => row.closest('.context_module, [data-testid="module-container"]');
@@ -68,5 +104,5 @@
         collapsed: !!first(g, '.ig-header [aria-expanded="false"], h2 [aria-expanded="false"]')
             || g.classList.contains('collapsed')}));
     const empty = !rows.length && /\b(?:no modules (?:have been|are|yet|published)|there are no modules)\b/i.test(main.innerText);
-    return {page: location.pathname, heading: document.title, elements: rows.length, sections, rows, empty};
+    return {page: location.pathname, heading: document.title, elements: rows.length, sections, rows, empty, assignmentsLink};
 }

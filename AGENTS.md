@@ -21,6 +21,10 @@ The current checkout is `C:\Users\gymlu\OneDrive\Documents\Toucan`.
   Continue in the same player and append captions to the same transcript.
   Log the foreground warning and driver change. The owner handles NetID and Duo
   in the Toucan window.
+- Before a player handoff, record its current URL through the driver with
+  the query and fragment removed. Keep surveys on the browser driver, answer
+  each visible group and verify submission on Canvas. Use Agree, Satisfied or
+  4 out of 5 on positive rating scales.
 - A blank capture or a Chrome discard signal triggers one recovery reload on
   an ordinary page. Preserve loaded course players under rule 3. Report a
   missing capture separately from a playback stall. Check playback through

@@ -3,9 +3,12 @@
 import copy
 import json
 import tempfile
+import threading
 import unittest
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from unittest.mock import Mock, patch
+from urllib.parse import urlsplit
 
 from tasks.queue import exclusive, load, mark, next_pending, resume, save
 from tools.browser.driver import Outcome, RunLog
@@ -241,6 +244,59 @@ class CanvasQueueTests(unittest.TestCase):
 
 
 class BackgroundSnapshotTests(unittest.TestCase):
+    def test_course_without_modules_discovers_current_and_past_assignments(self):
+        from playwright.sync_api import sync_playwright
+        from tools.browser.attach import attach
+
+        nav = '<nav id=section-tabs><a href="/courses/42/assignments">Assignments</a></nav>'
+        assignments = nav + """<main>
+            <li class="assignment"><a href="/courses/42/assignments/20">Current</a><span>-/100 pts</span></li>
+            <section><h2 class="ig-header"><button aria-expanded="false" aria-controls="past"
+              onclick="past.hidden=false;this.setAttribute('aria-expanded','true')">Past assignments</button></h2>
+            <ul id="past" hidden>
+            <li class="assignment"><a href="/courses/42/assignments/9">Late work</a><span>35 points possible</span></li>
+            <li class="assignment"><a href="/courses/42/assignments/8">Reported</a><span>-/10 pts</span>
+            <span class="submission-status">Submitted</span></li></ul></section></main>"""
+        class ListingSite(BaseHTTPRequestHandler):
+            def do_GET(self):
+                if urlsplit(self.path).path.endswith("/modules"):
+                    self.send_response(302)
+                    self.send_header("Location", "/courses/42")
+                    self.end_headers()
+                    return
+                self.send_response(200)
+                self.send_header("Content-Type", "text/html; charset=utf-8")
+                self.end_headers()
+                self.wfile.write((assignments if self.path.endswith("/assignments") else nav).encode())
+
+            def log_message(self, *args):
+                pass
+
+        server = ThreadingHTTPServer(("127.0.0.1", 0), ListingSite)
+        self.addCleanup(server.server_close)
+        self.addCleanup(server.shutdown)
+        threading.Thread(target=server.serve_forever, daemon=True).start()
+        origin = f"http://127.0.0.1:{server.server_port}"
+        with tempfile.TemporaryDirectory() as folder, sync_playwright() as pw:
+            browser = attach(pw)
+            ctx = browser.contexts[0]
+            try:
+                with patch("tools.canvas.dom.ORIGIN", origin):
+                    dom = CanvasDOM(browser, Path(folder))
+                    rows = dom.modules("42", refresh=True)
+                    self.assertEqual([(r["title"], r["points"], r["state"]) for r in rows],
+                                     [("Current", 100, "pending"), ("Late work", 35, "pending"),
+                                      ("Reported", 10, "complete")])
+                    self.assertEqual(rows[-1]["requirement"], "must_submit")
+                    self.assertEqual([r["title"] for r in dom.modules("42", refresh=True)], [r["title"] for r in rows])
+                    _, report = plan("complete every module", [{"id":"42", "title":"Course", "codes":[], "aliases":[]}],
+                                     lambda _: rows, "42")
+                    self.assertEqual(report["order"], ["Current", "Late work"])
+            finally:
+                for page in list(ctx.pages):
+                    if page.url.startswith(origin):
+                        page.close()
+
     def test_rendered_cards_rows_and_icons_in_a_disposable_tab(self):
         from playwright.sync_api import sync_playwright
         from tools.browser.attach import attach

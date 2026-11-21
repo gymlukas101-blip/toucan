@@ -7,6 +7,7 @@ import math
 import re
 import tempfile
 import time
+from collections import Counter
 from ctypes import wintypes
 from dataclasses import dataclass
 from datetime import datetime, timezone
@@ -20,6 +21,16 @@ from playwright.sync_api import Error, Frame, Locator, Page, TimeoutError as Pla
 
 from tools.check_secrets import PATTERNS
 from tools.lessons import LESSONS, lesson_rules
+
+
+CONTROL_SELECTOR = ('button,a[href],[role=button],[role=link],[onclick],[tabindex="0"],'
+                    'input:not([type=hidden]):not([type=password]),textarea,select,[contenteditable=true],'
+                    '[role=radio],[role=checkbox],[role=textbox],[role=combobox]')
+CONTROL_INFO = Path(__file__).with_name("controls.js").read_text(encoding="utf-8")
+
+
+def controls_on(surface, *, course=False):
+    return surface.locator(CONTROL_SELECTOR).evaluate_all(CONTROL_INFO, course)
 
 
 def public_url(url: str) -> str:
@@ -45,7 +56,7 @@ class RunLog:
         self.lessons = lesson_rules(LESSONS.read_text(encoding="utf-8"))
 
     def write(self, action, target, result, ms, *, driver="cdp", tier="T0", basis="domain", detail="",
-              source=None, elements=None, reason=None, rule_used=None):
+              source=None, elements=None, reason=None, rule_used=None, url=None):
         record = dict(t=datetime.now(timezone.utc).isoformat(), action=action, target=target,
                       result=result, tier=tier, basis=basis, ms=round(ms), driver=driver)
         if detail:
@@ -56,6 +67,8 @@ class RunLog:
             record["elements"] = elements
         if reason is not None:
             record["reason"] = reason
+        if url:
+            record["url"] = public_url(url)
         if rule_used in self.lessons:
             record["rule_used"] = rule_used
         data = json.dumps(record, ensure_ascii=True).encode("utf-8")
@@ -106,6 +119,22 @@ def visible_frames(page: Page) -> list[Frame]:
             if not frame.is_detached() and not parent.is_detached():
                 raise
     return visible
+
+
+def keyed_frames(page: Page):
+    frames = visible_frames(page)
+    bases = [f.name or public_url(f.url) for f in frames]
+    counts = Counter(bases)
+    assigned = set(bases)
+    occurrences = Counter()
+    for frame, base in zip(frames, bases):
+        key = base
+        if counts[base] > 1:
+            while key in assigned:
+                occurrences[base] += 1
+                key = f"{base}#{occurrences[base]}"
+            assigned.add(key)
+        yield key, frame
 
 
 def _visible_matches(locators: list[Locator]) -> list[Locator]:
@@ -166,35 +195,19 @@ class Driver:
 
     def frames(self) -> Outcome:
         def describe():
-            return [dict(name=f.name, url=public_url(f.url), main=f == self.page.main_frame)
-                    for f in visible_frames(self.page)]
+            return [dict(key=key, name=f.name, url=public_url(f.url), main=f == self.page.main_frame)
+                    for key, f in keyed_frames(self.page)]
         return self._action("frames", "page", describe, tier="T1")
 
     def read(self) -> Outcome:
         def observe():
-            controls = """els => {
-                const visible = e => e.checkVisibility({opacityProperty:true, visibilityProperty:true}) && e.getClientRects().length;
-                return els.filter(e => (visible(e) || Array.from(e.labels || []).some(visible))
-                && !e.closest('[inert]') && !e.closest('.quiz__card:not(.quiz__card--active)')).map(e => ({
-                role: e.getAttribute('role') || (e.tagName === 'A' ? 'link' :
-                    e.matches('button,input[type=submit],input[type=button],input[type=image]') ? 'button' : e.type || 'field'),
-                is_answer: e.matches('input:not([type=button]):not([type=image]):not([type=submit]):not([type=reset]):not([type=range]),'
-                    + 'textarea,select,[contenteditable=true],[role=radio],[role=checkbox],[role=textbox],[role=combobox]'),
-                disabled: e.matches(':disabled,[aria-disabled=true]'),
-                name: (e.getAttribute('aria-labelledby') || '').split(/ +/).filter(Boolean)
-                        .map(id => document.getElementById(id)?.innerText || '').join(' ').trim()
-                    || e.getAttribute('aria-label') || Array.from(e.labels || []).map(l => l.innerText).join(' ').trim()
-                    || e.innerText?.trim() || e.title || (e.matches('input[type=submit],input[type=button]') ? e.value : '')
-            }))}"""
-            selector = ("button,a[href],[role=button],[role=link],input:not([type=hidden]):not([type=password]),"
-                        "textarea,select,[contenteditable=true],[role=radio],[role=checkbox],[role=textbox],[role=combobox]")
             # Rise pre-renders an inert results card with a failing score before Start Quiz.
             # Only the active card describes the learner's current question or result.
             content = "body => (body.querySelector('.quiz__card--active') || body).innerText"
-            return [dict(name=f.name, url=public_url(f.url), main=f == self.page.main_frame,
+            return [dict(key=key, name=f.name, url=public_url(f.url), main=f == self.page.main_frame,
                          text=f.locator("body").evaluate(content, timeout=2000),
-                         controls=f.locator(selector).evaluate_all(controls))
-                    for f in visible_frames(self.page) if f.locator("body").count()]
+                         controls=controls_on(f.locator("body")))
+                    for key, f in keyed_frames(self.page) if f.locator("body").count()]
         return self._action("read", "visible frame text", observe, tier="T1")
 
     def goto(self, url: str) -> Outcome:
@@ -246,9 +259,14 @@ class Driver:
     def _click(self, target):
         self._check_input()
         spec = {"name": target} if isinstance(target, str) else target
-        frames = visible_frames(self.page)
+        observed = list(keyed_frames(self.page))
+        frames = [f for _, f in observed]
         if "frame" in spec:
-            frames = [f for f in frames if f.name == spec["frame"] or public_url(f.url) == spec["frame"]]
+            frames = [f for key, f in observed if key == spec["frame"]]
+            if not frames and "surface" not in spec:
+                frames = [f for _, f in observed if f.name == spec["frame"] or public_url(f.url) == spec["frame"]]
+            if spec.get("frame_url"):
+                frames = [f for f in frames if public_url(f.url) == spec["frame_url"]]
             if len(frames) != 1:
                 raise ActionFailure("miss", "The named frame is missing or ambiguous.")
         name = spec.get("name") or spec.get("label") or spec.get("text")
@@ -260,15 +278,49 @@ class Driver:
                 lambda: [f.get_by_label(spec.get("label", name), exact=True) for f in frames],
                 lambda: [f.get_by_text(spec.get("text", name), exact=True) for f in frames],
             ]
+            if "surface" in spec:
+                def discovered():
+                    matches = []
+                    for frame in frames:
+                        surface = frame.locator("body")
+                        if spec["surface"] == "content":
+                            content = frame.locator("#content, main, [role=main]").first
+                            if content.count():
+                                surface = content
+                        controls = surface.locator(CONTROL_SELECTOR)
+                        for c in controls.evaluate_all(CONTROL_INFO, True):
+                            if (c["role"] == spec["role"] and c["name"] == name and not c["disabled"]
+                                    and c["group"] == spec.get("group", "")
+                                    and (not spec.get("control_id") or c["id"] == spec["control_id"])):
+                                matches.append(controls.nth(c["index"]))
+                    return matches
+                searches = [discovered]
             for search in searches:
-                found = _visible_matches(search())
+                # Discovery already checked visibility of each control or its associated label.
+                found = search() if "surface" in spec else _visible_matches(search())
                 if len(found) > 1:
                     raise ActionFailure("ambiguous", "More than one visible control matches the target.")
                 if found:
                     self.check_player()
                     control = found[0]
-                    course_launch = (spec.get("course_launch") and spec.get("role") == "button"
-                                     and isinstance(name, str) and re.fullmatch(r"load .+ in a new window", name, re.I))
+                    course_launch = spec.get("course_launch") and spec.get("role") in {"button", "link"}
+                    if spec.get("survey_choice"):
+                        selected = control.evaluate("""e => {
+                            const checked = () => e.checked === true || e.getAttribute('aria-checked') === 'true';
+                            if (!checked()) e.click();
+                            return checked();
+                        }""")
+                        if not selected:
+                            raise ActionFailure("miss", "The survey answer did not register.")
+                        return "survey answer selected"
+                    if ("surface" in spec and not course_launch and urlsplit(control.page.url).hostname == "canvas.wisc.edu"
+                            and re.fullmatch(r"(?:take (?:the )?(?:quiz|survey)|submit(?: quiz| survey)?)", name, re.I)):
+                        control.evaluate("e => e.click()")
+                        return "Canvas form control"
+                    if "surface" in spec and not course_launch and control.evaluate(
+                            "e => e.getRootNode() instanceof ShadowRoot || e.hasAttribute('onclick')"):
+                        control.evaluate("e => e.click()")
+                        return "course control"
                     if (spec.get("role") in {"radio", "checkbox"} and control.is_enabled()
                             and control.evaluate("e => e.closest('label')?.control === e")):
                         label = control.locator("xpath=ancestor::label[1]")
@@ -333,6 +385,11 @@ class Driver:
                 or re.search(r"/courses/\d+/assignments/\d+(?:/|$)", urlsplit(self.page.url).path)):
             self._course_popup = page
         self.page = page
+
+    def handoff_url(self):
+        address = public_url(self.page.url)
+        self.log.write("handoff-url", "current browser tab", "ok", 0, source="dom", tier="T1", url=address)
+        return address
 
     def _viewport(self, kind: str, *, background_recovery: bool = False) -> tuple[bytes, str]:
         time.sleep(max(0, self._next_viewport - time.monotonic()))

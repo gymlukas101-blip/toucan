@@ -121,9 +121,67 @@ class CourseTransitionTests(unittest.TestCase):
         self.assertFalse(self.page.get_by_role("radio", name="I have not completed this module.", exact=True).is_checked())
 
     def test_rise_start_course_link_is_in_the_player_menu(self):
-        self.page.set_content("""<a href="#/lessons/example">START COURSE</a>
+        self.page.set_content("""<a class="overview__button" href="#/lessons/example">START COURSE</a>
             <a href="https://example.org">University Health Services</a>""")
         steps = self.worker.controls(self.driver)
         self.assertEqual(len(steps), 1)
         self.assertEqual(steps[0]["locator"]["role"], "link")
         self.assertEqual(steps[0]["locator"]["name"], "START COURSE")
+
+    def test_course_controls_filter_prose_and_navigation(self):
+        self.page.set_content("""<nav><a class="btn" href="#home">Home</a></nav>
+            <p><a href="#reference">Reference</a> and <a href="#citation">Citation</a></p>
+            <button>Continue</button><a class="cta" href="#exit">Exit course</a>""")
+        self.assertEqual([s["control_text"] for s in self.worker.controls(self.driver)], ["Continue"])
+        self.page.set_content('<a href="#go">Begin</a>')
+        self.assertEqual([s["control_text"] for s in self.worker.controls(self.driver)], ["Begin"])
+        self.page.set_content('<a href="#go">Begin</a><div tabindex="0">Next card</div>')
+        self.assertEqual([s["control_text"] for s in self.worker.controls(self.driver)], ["Next card"])
+
+    def test_clicks_open_shadow_controls_and_handler_divs(self):
+        self.page.set_content("""<div id=host></div><div onclick="this.textContent='Done'">Reveal</div>
+            <script>host.attachShadow({mode:'open'}).innerHTML =
+                '<button onclick="this.textContent=123">Play clip</button>'</script>""")
+        steps = {s["control_text"]: s for s in self.worker.controls(self.driver)}
+        self.assertEqual(set(steps), {"Play clip", "Reveal"})
+        for name in steps:
+            result = self.driver.click(steps[name]["locator"])
+            self.assertTrue(result.ok, result)
+        self.assertEqual(self.page.get_by_role("button").inner_text(), "123")
+        self.assertTrue(self.page.get_by_text("Done", exact=True).is_visible())
+
+    def test_survey_answers_each_group_then_records_submit(self):
+        self.worker.item["requirement"] = "must_submit"
+        levels = ["Strongly disagree", "Disagree", "Neutral", "Agree", "Strongly agree"]
+        self.page.set_content("".join("<fieldset><legend>" + group + "</legend>" + "".join(
+            f'<label><input type=radio name="{group}">{option}</label>' for option in levels) + "</fieldset>"
+            for group in ("Materials", "Pacing")) +
+            "<fieldset><legend>Topics covered</legend><label><input type=checkbox>Practice</label></fieldset>"
+            "<button>Submit Survey</button>")
+        self.worker.observe_quiz(self.driver, self.driver.read().value)
+        for group in ("Materials", "Pacing"):
+            choice, = self.worker.controls(self.driver)
+            self.assertEqual((choice["control_text"], choice["question"]), ("Agree", group))
+            self.assertTrue(self.driver.click(choice["locator"]).ok)
+        choice, = self.worker.controls(self.driver)
+        self.assertEqual(choice["control_text"], "Practice")
+        self.assertTrue(self.driver.click(choice["locator"]).ok)
+        submit, = self.worker.controls(self.driver)
+        self.assertTrue(self.worker.is_quiz_submit(submit))
+        self.assertEqual(self.page.locator("input:checked").count(), 3)
+        self.worker.record_submit(self.driver, dispatched=True)
+        self.assertEqual(self.worker.controls(self.driver), [])
+
+    def test_duplicate_frame_names_dispatch_to_the_frame_that_advertised_the_control(self):
+        self.page.set_content('<iframe name="ScormContent" srcdoc="outer"></iframe>')
+        outer = self.page.frame(name="ScormContent")
+        outer.set_content("""<button>Outer</button><iframe name="ScormContent"
+            srcdoc="<button onclick='this.textContent=123'>Launch Course</button>"></iframe>""")
+        inner = outer.child_frames[0]
+        inner.get_by_role("button", name="Launch Course").wait_for()
+        steps = {s["control_text"]: s for s in self.worker.controls(self.driver)}
+        keys = [steps[n]["locator"]["frame"] for n in ("Outer", "Launch Course")]
+        self.assertEqual(keys, ["ScormContent#1", "ScormContent#2"])
+        result = self.driver.click(steps["Launch Course"]["locator"])
+        self.assertTrue(result.ok, result)
+        self.assertEqual(inner.get_by_role("button").inner_text(), "123")

@@ -11,8 +11,25 @@ RESULT_SCORE = re.compile(rf"^score[ \t]*:[ \t]*\n?({VALUE})[.!]?$", re.I | re.M
 QUESTION = re.compile(r"^(?:(?:yes[, .]+)?i have (?:successfully )?completed this module|"
                       r"have you completed (?:and understood )?this module)[.!?]?$", re.I | re.M)
 QUIZ_TITLE = re.compile(r"^(?:(?:module \d+[: -]+)?completion (?:quiz|question)|module \d+ completion)[.!]?$", re.I | re.M)
-SUBMIT = re.compile(r"^(?:submit(?: (?:quiz|answer|interaction|assessment|response))?|finish quiz)"
+SUBMIT = re.compile(r"^(?:submit(?: (?:quiz|survey|answers?|interaction|assessment|responses?))?|finish (?:quiz|survey))"
                     r"(?:\s*\([^)]*\))?$", re.I)
+
+
+def mid_positive(choices):
+    """Select a labeled, moderately positive scale point or four on a five-point scale."""
+    if len(choices) < 3:
+        return None
+    labels = {s["control_text"].strip().casefold(): s for s in choices}
+    for name in ("agree", "satisfied", "confident", "likely", "motivated", "comfortable", "prepared",
+                 "somewhat agree", "somewhat satisfied", "mostly agree", "somewhat likely"):
+        for label, step in labels.items():
+            if re.fullmatch(r"(?:4\s*[-:–.)]\s*)?" + name + r"(?:\s*\(4\))?", label):
+                return step
+    numbers = {m[1]: s for label, s in labels.items()
+               if (m := re.fullmatch(r"([1-5])(?:\s*(?:of|/)\s*5)?", label))}
+    if len(labels) == len(numbers) == 5:
+        return numbers["4"]
+    return None
 
 
 def quiz_evidence(frames):

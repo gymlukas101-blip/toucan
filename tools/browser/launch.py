@@ -5,6 +5,7 @@ import http.client
 import json
 import os
 import subprocess
+import tempfile
 import time
 from pathlib import Path
 from urllib.parse import urlsplit
@@ -101,6 +102,54 @@ def wait_ready(port: int = PORT, timeout: float = 20) -> int:
     raise BrowserUnavailable(f"Toucan Chrome did not answer at {HOST}:{port} within {timeout:g}s.")
 
 
+def allow_course_popups(profile: Path) -> None:
+    """Configure the dedicated profile before Chrome takes ownership of its preferences."""
+    directory = profile / "Default"
+    directory.mkdir(parents=True, exist_ok=True)
+    prefs = directory / "Preferences"
+    if prefs.resolve().parent != profile.resolve() / "Default" or prefs.is_symlink():
+        raise BrowserUnavailable("Chrome preferences must belong to the dedicated profile.")
+    values = json.loads(prefs.read_text(encoding="utf-8")) if prefs.exists() else {}
+    settings = values.setdefault("profile", {}).setdefault("default_content_setting_values", {})
+    if settings.get("popups") == 1:
+        return
+    settings["popups"] = 1
+    with tempfile.NamedTemporaryFile(mode="w", encoding="utf-8", dir=directory, delete=False) as tmp:
+        path = Path(tmp.name)
+    try:
+        path.write_text(json.dumps(values, separators=(",", ":")), encoding="utf-8")
+        os.replace(path, prefs)
+    finally:
+        path.unlink(missing_ok=True)
+
+
+def apply_running_popup_preference(browser):
+    """Update Chrome's live setting when reusing a profile started by an older runner."""
+    prefs = PROFILE / "Default" / "Preferences"
+    if prefs.is_file():
+        settings = json.loads(prefs.read_text(encoding="utf-8")).get("profile", {}).get("default_content_setting_values", {})
+        if settings.get("popups") == 1:
+            return
+    url = "chrome://settings/content/popups"
+    session = browser.new_browser_cdp_session()
+    try:
+        with browser.contexts[0].expect_page(timeout=10000) as created:
+            session.send("Target.createTarget", {"url": url, "background": True})
+        page = created.value
+        try:
+            page.wait_for_url(url, timeout=10000)
+            allow = page.get_by_role("radio", name="Sites can send pop-ups and use redirects", exact=True)
+            allow.wait_for(timeout=10000)
+            if not allow.is_checked():
+                allow.evaluate("e => e.click()")
+            page.get_by_role("radio", name="Sites can send pop-ups and use redirects",
+                             exact=True, checked=True).wait_for(timeout=5000)
+        finally:
+            page.close()
+    finally:
+        session.detach()
+
+
 def launch() -> int:
     if version() is not None:
         return verify_owner()
@@ -108,13 +157,14 @@ def launch() -> int:
     PROFILE.mkdir(parents=True, exist_ok=True)
     if PROFILE.is_symlink() or PROFILE.resolve() != PROFILE.absolute():
         raise BrowserUnavailable("The dedicated Chrome profile must resolve to its own directory.")
+    allow_course_popups(PROFILE)
     startup = subprocess.STARTUPINFO()
     startup.dwFlags |= subprocess.STARTF_USESHOWWINDOW
     startup.wShowWindow = 4  # SW_SHOWNOACTIVATE
     subprocess.Popen([
         str(chrome), f"--remote-debugging-port={PORT}", f"--remote-debugging-address={HOST}",
         f"--user-data-dir={PROFILE}", "--disable-background-timer-throttling",
-        "--disable-backgrounding-occluded-windows", "--disable-renderer-backgrounding",
+        "--disable-backgrounding-occluded-windows", "--disable-renderer-backgrounding", "--disable-popup-blocking",
         "--no-first-run", "--no-default-browser-check", "about:blank",
     ], startupinfo=startup, stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
        stderr=subprocess.DEVNULL, close_fds=True)

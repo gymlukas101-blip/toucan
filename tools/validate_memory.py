@@ -9,7 +9,7 @@ from datetime import date
 from pathlib import Path
 
 
-ALLOWED = {"transcript", "screenshot", "domain", "inferred"}
+ALLOWED = {"transcript", "screenshot", "domain", "inferred", "user"}
 LINE = re.compile(
     r"^\s*-\s+.+<!--\s*id=(\S+)\s+src=(\S+)\s+date=(\d{4}-\d{2}-\d{2})\s*-->$"
 )

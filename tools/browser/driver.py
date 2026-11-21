@@ -41,11 +41,16 @@ class RunLog:
         self.path = Path(path)
         self.path.parent.mkdir(parents=True, exist_ok=True)
 
-    def write(self, action, target, result, ms, *, driver="cdp", tier="T0", basis="domain", detail=""):
+    def write(self, action, target, result, ms, *, driver="cdp", tier="T0", basis="domain", detail="",
+              source=None, elements=None):
         record = dict(t=datetime.now(timezone.utc).isoformat(), action=action, target=target,
                       result=result, tier=tier, basis=basis, ms=round(ms), driver=driver)
         if detail:
             record["detail"] = detail
+        if source is not None:
+            record["source"] = source
+        if elements is not None:
+            record["elements"] = elements
         data = json.dumps(record, ensure_ascii=True).encode("utf-8")
         for pattern in PATTERNS.values():
             data = pattern.sub(b"<redacted>", data)

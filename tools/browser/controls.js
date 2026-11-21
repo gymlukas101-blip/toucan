@@ -2,10 +2,15 @@
 (elements, course) => {
     const visible = e => e.checkVisibility({visibilityProperty: true, opacityProperty: true})
         && e.getClientRects().length > 0;
+    // Moodle's numbered activity index is coursework navigation within this vendor.
+    const courseActivity = e => course && e.tagName === 'A' && location.hostname === 'wisc.prevent.zone'
+        && e.origin === location.origin && !!e.closest('#course-index,.courseindex,.course-content,.activity,.block_navigation')
+        && /^(?:\d+[.)]\s*)?(?:initial survey|expectations and motivations|the science behind alcohol and drugs|making informed decisions|final quiz|final survey)$/i
+            .test((e.innerText || e.getAttribute('aria-label') || '').trim());
     const blockedSurface = e => {
         for (let node = e; node; node = node.getRootNode().host) {
             if (node.closest('[inert], .quiz__card:not(.quiz__card--active)')) return true;
-            if (e.tagName === 'A' && node.closest('nav, [role=navigation], #breadcrumbs, #section-tabs, footer')) return true;
+            if (e.tagName === 'A' && !courseActivity(e) && node.closest('nav, [role=navigation], #breadcrumbs, #section-tabs, footer')) return true;
         }
         return false;
     };
@@ -28,7 +33,7 @@
             const sameLessonDocument = e.origin === location.origin && e.pathname === location.pathname
                 && e.search === location.search && /^#\/lessons\/[^/]+$/.test(e.hash);
             const surface = nextLesson && sameLessonDocument ? active.filter(c => nextLesson.contains(c.e)) : active;
-            if (surface.length !== 1 || surface[0].e !== e) continue;
+            if ((surface.length !== 1 || surface[0].e !== e) && !courseActivity(e)) continue;
         }
         const root = e.getRootNode();
         const referenced = (e.getAttribute('aria-labelledby') || '').split(/\s+/).filter(Boolean)
@@ -40,11 +45,13 @@
         const choice = role === 'radio' || role === 'checkbox';
         const info = {index, name, role, disabled, is_answer: choice || e.matches(
             'textarea,select,[contenteditable=true],[role=textbox],[role=combobox],input:not([type=range]):not([type=button]):not([type=submit]):not([type=image]):not([type=reset])')};
-        if (choice) info.checked = e.checked === true || e.getAttribute('aria-checked') === 'true';
+        info.toggle = e.hasAttribute('aria-pressed') || e.hasAttribute('aria-checked');
+        if (choice || info.toggle) info.checked = e.checked === true || e.getAttribute('aria-checked') === 'true'
+            || e.getAttribute('aria-pressed') === 'true';
         if (course) {
-            const question = e.closest('.display_question,.question');
+            const question = e.closest('.display_question,.question,.que,.form-group,[data-question]');
             const section = e.closest('fieldset,[role=radiogroup],[role=group]') || question;
-            const title = question?.querySelector('.question_text,[data-question-text],.question-header')
+            const title = question?.querySelector('.question_text,.qtext,[data-question-text],.question-header,legend')
                 || section?.querySelector('legend,[data-question-text],.question-header');
             if (choice && section && !groupKeys.has(section))
                 groupKeys.set(section, section.id || 'group-at-' + index);
@@ -63,6 +70,15 @@
             }
         }
         controls.push(info);
+    }
+    const counts = new Map();
+    const key = c => JSON.stringify([c.role, c.name, c.group || '']);
+    for (const c of controls.filter(c => !c.disabled)) counts.set(key(c), (counts.get(key(c)) || 0) + 1);
+    const positions = new Map();
+    for (const c of controls.filter(c => !c.disabled && counts.get(key(c)) > 1)) {
+        c.position = (positions.get(key(c)) || 0) + 1;
+        c.peerCount = counts.get(key(c));
+        positions.set(key(c), c.position);
     }
     return controls;
 }

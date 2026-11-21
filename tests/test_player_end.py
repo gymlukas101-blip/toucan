@@ -60,7 +60,7 @@ class EndOfItemTests(unittest.TestCase):
                 raise Error("Frame.frame_element: Frame has been detached.")
 
             def decision(*_args, **_kwargs):
-                self.page.url = "https://receipt.test/thank-you"
+                self.page.url = "https://player.test/thank-you"
                 return dict(action="wait", target="", text="", basis="domain", rule_used=None)
 
             self.dom.modules.side_effect = listing

@@ -31,6 +31,8 @@ evidence and retain rules that cover recurring failures.
   open after activating it, and verify submission on the Modules page. The
   Post-Survey kept its saved answers when its confirmation dialog closed.
   Bind each survey choice to its question before checking for an answer.
+  For “select all that apply” and “choose all”, check each plausible option
+  and confirm the whole selection before continuing.
   DatingWIse used the label “Group of answer choices” for ten different
   questions. Verify each group separately before offering Submit.
   Inspect the link text on native quiz entry pages. Decisions Part 2 showed
@@ -39,12 +41,20 @@ evidence and retain rules that cover recurring failures.
   click. Free Expression used `role="button"` and stayed on its entry page.
 - [L13] Convert screenshot pixels to page coordinates before a positional click.
   *Why:* Windows display scaling made the first CC click miss its target.
+  Canvas interactives and hotspot markers can ignore a synthetic click.
+  When a named click leaves the frame and playhead unchanged, locate the
+  same visible control again and retry once at its centre. Log the retry
+  and verify the result. After three misses, wait and inspect the control again.
 - [L14] Bind the course after its launch redirects settle. An embedded video
   can give way to a quiz inside the same course. Follow that transition and
   record the quiz, Submit, and the score on the active results card. Rise
   prefilled an inactive card with 0% before Module 3's quiz began.
-  When the course window redirects away
-  or its bound course frame detaches, stop capture and verify its Canvas row.
+  A launch can open a vendor on another origin. Record that origin and the
+  player’s iframe origins on this item. Continue on its recorded origins.
+  When the course ends, stop capture and verify its Canvas row. Stop input
+  if the window moves outside Canvas and the origins recorded for this item.
+  Close a dead player before the next item once its item is terminal and
+  verified on Canvas. Preserve the current player and all running items.
   *Why:* Module 3's “Thank you!” page left Canvas pending. Its fresh launch
   also changed documents on the way to a live lesson.
 
@@ -104,3 +114,6 @@ evidence and retain rules that cover recurring failures.
 - [L16] Attestations are not escalations. The human is asleep; answer yes and submit.
   *Why:* Module 4 stopped at the policy acknowledgement for a human who had
   already reviewed it.
+  Answer personal questions using the owner’s profile and standing choices.
+  Record each new answer immediately and reuse it on later questions.
+  *Why:* rule 10 triggered handoffs on questions with no objective answer.

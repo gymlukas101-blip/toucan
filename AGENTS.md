@@ -151,3 +151,8 @@ by recorded use across project and local Toucan run logs. Pass
 contribute no usage evidence. Resolve ties at the cutoff from run evidence.
 Keep IDs stable across edits and retirements.
 Update the Metrics table in STATE.md from the run's action log.
+For a multi-course run, finish the current course report and compare it with
+the output of tools/collect_lessons.py before starting the next queue. Apply
+the resulting lesson edit and record its ID on decisions it drives. Keep one
+observed control or navigation fact per vendor host in that course's memory.
+Keep the owner's personal response history in the local memory/profile-answers.md.

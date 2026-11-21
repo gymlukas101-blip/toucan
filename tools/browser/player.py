@@ -5,6 +5,7 @@ import re
 import time
 from contextlib import contextmanager
 from threading import Event, local
+from urllib.parse import urlsplit
 
 from playwright.sync_api import Error
 
@@ -20,6 +21,25 @@ def target_id(page):
 def player_identity(url):
     # Slide fragments change in place. Keep signed document URLs out of the queue and log.
     return hashlib.sha256(url.partition("#")[0].encode("utf-8")).hexdigest()
+
+
+def web_origin(url):
+    parts = urlsplit(url)
+    if parts.scheme not in {"http", "https"} or not parts.hostname or parts.username or parts.password:
+        return ""
+    host = parts.hostname if ":" not in parts.hostname else f"[{parts.hostname}]"
+    port = parts.port
+    return f"{parts.scheme}://{host}" + (f":{port}" if port and port != (443 if parts.scheme == "https" else 80) else "")
+
+
+def exit_document(url):
+    parts = urlsplit(url)
+    return ((parts.hostname == "canvas.wisc.edu" and parts.path.startswith("/courses/"))
+            or bool(re.search(r"/(?:end|exit|receipt|thank[-_]?you)(?:\.[a-z]+)?/?$", parts.path, re.I)))
+
+
+class OriginChanged(RuntimeError):
+    """The bound top-level document moved outside the item's recorded origins."""
 
 
 def player_ended(page, identity, error=None):
@@ -71,8 +91,10 @@ def wait_for_player(page, timeout=25):
 
 
 class PlayerWatch:
-    def __init__(self, identity):
+    def __init__(self, identity, origins=None):
         self.identity = identity
+        self.origins = origins
+        self.denied = False
         self.ended = Event()
         self.reason = ""
         self._connection = local()
@@ -102,14 +124,23 @@ class PlayerWatch:
             if page.is_closed():
                 self.finish("The player window closed.")
             elif player_identity(page.url) != self.identity:
-                self.finish("The player window navigated to another document.")
+                self.navigation(page.url)
             elif error and player_ended(None, None, error):
                 course = getattr(self._connection, "course", None)
                 if course and not course.is_detached() and self._connection.documents[course] == player_identity(course.url):
                     raise LessonChanged("An embedded activity changed inside the open course.")
                 self.finish("The browser reported a detached player frame during an action.")
         if self.ended.is_set():
+            if self.denied:
+                raise OriginChanged(self.reason)
             raise PlayerEnded(self.reason or "The player document ended. Verify completion on Canvas.")
+
+    def navigation(self, url):
+        if self.origins is not None and web_origin(url) not in self.origins:
+            self.denied = True
+            self.finish("The player navigated outside Canvas and this item's recorded origins.")
+        elif self.origins is None or exit_document(url):
+            self.finish("The player window navigated away.")
 
     @contextmanager
     def observe(self, page):
@@ -132,8 +163,12 @@ class PlayerWatch:
 
         def navigated(frame):
             if frame in documents and player_identity(frame.url) != documents[frame]:
-                self.finish("The player window navigated away." if frame == page.main_frame else
-                            "An embedded player document navigated away.")
+                if frame == page.main_frame:
+                    self.navigation(frame.url)
+                elif self.origins is None or exit_document(frame.url):
+                    self.finish("An embedded player document navigated away.")
+                else:
+                    documents[frame] = player_identity(frame.url)
 
         handlers = (("framedetached", detached), ("framenavigated", navigated), ("close", ended))
         for event, handler in handlers:

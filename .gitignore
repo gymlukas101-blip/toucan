@@ -11,3 +11,5 @@ secrets/
 *.jwt
 .env
 __pycache__/
+/memory/profile-answers.md
+/memory/profile-answers.md.lock

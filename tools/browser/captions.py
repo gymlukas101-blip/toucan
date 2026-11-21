@@ -8,7 +8,7 @@ from playwright.sync_api import Error, sync_playwright
 
 from tools.browser.attach import attach
 from tools.browser.driver import visible_frames
-from tools.browser.player import LessonChanged, PlayerEnded, PlayerWatch, player_identity, target_id as _target
+from tools.browser.player import LessonChanged, OriginChanged, PlayerEnded, PlayerWatch, player_identity, target_id as _target
 
 
 def _read(page, watch=None):
@@ -66,7 +66,7 @@ class CaptionSampler:
                 self.watch = self.watch or PlayerWatch(player_identity(page.url))
                 with self.watch.observe(page):
                     self._sample(page)
-        except PlayerEnded as end:
+        except (PlayerEnded, OriginChanged) as end:
             if self.watch:
                 self.watch.finish(str(end))
         except Exception as error:

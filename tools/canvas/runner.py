@@ -17,12 +17,15 @@ from tasks.queue import TERMINAL, exclusive, load, mark, next_pending, resume, s
 from tools.browser.attach import attach
 from tools.browser.driver import Driver, Outcome, controls_on, keyed_frames, public_url
 from tools.browser.launch import apply_running_popup_preference, launch
-from tools.browser.player import PlayerEnded, player_ended, player_identity as _player_identity, target_id
+from tools.browser.player import (OriginChanged, PlayerEnded, exit_document, player_ended,
+                                  player_identity as _player_identity, target_id, web_origin)
 from tools.browser.run import BLOCKED, choose_page, hard_block, run_loop
 from tools.canvas.completion import SUBMIT, mid_positive, quiz_evidence, quiz_summary
 from tools.canvas.dom import CanvasDOM, ORIGIN
 from tools.canvas.plan import course_order, plan, queue_item, whole_course_row
 from tools.canvas.resolve import normalized
+from tools.canvas.profile import MULTIPLE, ProfileAnswers, personal_question
+from tools.canvas.quiz import attempt
 from tools.collect_lessons import records
 
 
@@ -135,11 +138,15 @@ def _reconcile(queue, dom):
         row = by_key.get(item["key"]) or by_url.get(item["url"])
         if row:
             observed[item["key"]] = row
+            if row["url"] in {"", item["url"]}:
+                item["canvas_verified"] = True
         if item["status"] in TERMINAL:
             continue
         verifying_end = item.get("awaiting_verification")
-        if row and row["state"] == "complete" and row["url"] in {"", item["url"]}:
+        if row and row["url"] in {"", item["url"]} and (row["state"] == "complete" or item.get("quiz", {}).get("canvas_result")):
             mark(queue, item["key"], "done", "Canvas confirmed completion: " + (row["label"] or "checkmark"))
+            if item.get("quiz", {}).get("canvas_result"):
+                item["note"] = "Canvas posted the quiz score " + item["quiz"]["score"] + "."
         elif verifying_end:
             evidence = "row missing" if not row else f"{row['state']} ({row['label'] or 'no status label'})"
             if row and row["url"] and row["url"] != item["url"]:
@@ -153,6 +160,9 @@ def _reconcile(queue, dom):
             dom.log.write("verify-completion", item["title"], result, (time.monotonic() - started) * 1000,
                           source="dom", tier="T1", detail=item["note"])
     queue["items"].sort(key=lambda i: order.get(observed.get(i["key"], {}).get("key"), len(rows)))
+    for item in queue["items"]:
+        if item["status"] in TERMINAL and item.get("canvas_verified") and item.get("ended_player"):
+            dom.ended_targets.add(item["ended_player"])
     return deferred
 
 
@@ -164,6 +174,8 @@ def walk_queue(path, dom, open_players, perform):
         save(path, queue)
         deferred = _reconcile(queue, dom)
         save(path, queue)
+        if isinstance(dom, CanvasDOM):
+            dom.cleanup_tabs(queue)
         while item := next_pending(queue):
             key = item["key"]
             if item.get("handoff") and live.get(item.get("player")) and not survey_item(item):
@@ -176,10 +188,13 @@ def walk_queue(path, dom, open_players, perform):
                 save(path, queue)
                 deferred = _reconcile(queue, dom)
                 save(path, queue)
+                if isinstance(dom, CanvasDOM):
+                    dom.cleanup_tabs(queue)
                 continue
             item.pop("handoff", None)
             started = time.monotonic()
             mark(queue, key, "running", "Running the listed item.")
+            item.pop("canvas_verified", None)
             save(path, queue)
             page = live.get(item.get("player"))
             try:
@@ -212,7 +227,11 @@ def walk_queue(path, dom, open_players, perform):
             deferred = _reconcile(queue, dom)
             if item["status"] == "running":
                 mark(queue, key, "blocked", "Canvas completion unconfirmed. " + outcome.detail)
+            if item.get("canvas_verified") and item.get("ended_player"):
+                dom.ended_targets.add(item["ended_player"])
             save(path, queue)
+            if isinstance(dom, CanvasDOM):
+                dom.cleanup_tabs(queue)
             if outcome.result != "item-ended":
                 dom.log.write("queue_item", item["title"], "ok" if item["status"] == "done" else "miss",
                               (time.monotonic() - started) * 1000, source="dom", detail=item["note"])
@@ -229,10 +248,16 @@ def live_players(browser, queue, log=None):
             item = expected.get(tid)
             if not item or not item.get("player_identity"):
                 continue
-            if _player_identity(page.url) == item["player_identity"]:
+            if (_player_identity(page.url) == item["player_identity"] or
+                    web_origin(page.url) in item.get("allowed_origins", ()) and not exit_document(page.url)):
                 found[tid] = page
             else:
-                _item_ended(item, log)
+                detail = "The recorded player target left its document."
+                if item.get("allowed_origins") and web_origin(page.url) not in item["allowed_origins"]:
+                    detail = "The player navigated outside this item's recorded origins."
+                    if log:
+                        log.write("origin-check", item["title"], "aborted", 0, rule_used="L14", detail=detail)
+                _item_ended(item, log, detail)
     return found
 
 
@@ -251,6 +276,41 @@ class CourseItem:
         self.native_quiz = re.fullmatch(r"(/courses/\d+/quizzes/\d+)(?:/take)?/?", entry.path)
         self.native_origin = entry[:2]
         self.launch_popups = []
+        self.origins = set(item.get("allowed_origins", ())) | {web_origin(item["url"])}
+        self.selection_plans = {}
+        self.profile = ProfileAnswers()
+
+    def native_attempt(self, page):
+        return self.native_quiz and attempt(page.url, _course_id(self.item)) and urlsplit(page.url).path.rstrip("/") == self.native_quiz[1] + "/take"
+
+    def record_player_origins(self, page, *, launch=False):
+        top = web_origin(page.url)
+        if not top or (not launch and top not in self.origins):
+            raise OriginChanged("The player navigated outside Canvas and this item's recorded origins.")
+        observed = {top}
+        for f in page.frames:
+            if not f.parent_frame or f.is_detached():
+                continue
+            if page is not self.player and not launch:
+                parent = f
+                while parent.parent_frame and parent.parent_frame != page.main_frame:
+                    parent = parent.parent_frame
+                try:
+                    if not parent.frame_element().evaluate("e=>!!e.closest('#content,main,[role=main]')"):
+                        continue
+                except Error:
+                    if parent.is_detached():
+                        continue
+                    raise
+            observed.add(web_origin(f.url))
+        additions = (observed - {""}) - self.origins
+        self.origins.update(additions)
+        if additions or "allowed_origins" not in self.item:
+            self.item["allowed_origins"] = sorted(self.origins)
+            self.persist()
+            if self.dom and additions:
+                self.dom.log.write("record-origins", self.item["title"], "ok", 0, rule_used="L14",
+                                   detail=", ".join(sorted(additions)))
 
     def _milestone(self, driver, key, value, action, detail):
         quiz = self.item.setdefault("quiz", {})
@@ -293,6 +353,8 @@ class CourseItem:
     def answered(self, step):
         self.response_required = False
         self.answered_prompt = step.get("prompt", "")
+        if step.get("record_personal"):
+            self.profile.record(step["question"], [step["control_text"]])
 
     def record_submit(self, driver, *, dispatched):
         if dispatched:
@@ -319,7 +381,8 @@ class CourseItem:
         if page is self.player:
             parts = urlsplit(page.url)
             if self.item.get("player_identity") and _player_identity(page.url) != self.item["player_identity"]:
-                return False
+                if web_origin(page.url) not in self.origins or exit_document(page.url):
+                    return False
             return parts.scheme in {"http", "https"} and not (
                 parts.hostname == "canvas.wisc.edu" and re.match(r"/courses/\d+(?:/|$)", parts.path))
         address = urlsplit(page.url)
@@ -339,6 +402,9 @@ class CourseItem:
                 raise PlayerEnded("The player ended during launch. Verify completion on Canvas.") from error
             raise
         self.item.update(player=target, player_identity=identity)
+        if self.dom:
+            self.dom.driven_page = page
+        self.record_player_origins(page, launch=True)
         self.item.pop("quiz", None)
         self.item.pop("last_slide", None)
         self.persist()
@@ -378,12 +444,14 @@ class CourseItem:
                 opens = not player and (bool(named_launch) or control["newWindow"]
                                         or name.casefold() == "launch course")
                 group = control["group"]
-                label = f"{display} [{role}, {frame_key}" + (f", {group}]" if group else "]")
+                suffix = f" #{control['position']}" if control.get("position") else ""
+                label = f"{display}{suffix} [{role}, {frame_key}" + (f", {group}]" if group else "]")
                 if label in seen:
                     continue
                 seen.add(label)
                 steps.append({"action": "play" if name.casefold() in {"play", "resume playback"} else "click",
                               "target": label, "locator": {"name": name, "role": role, "frame": frame_key,
+                                                          "position": control.get("position"), "peers": control.get("peerCount"),
                                                           "frame_url": public_url(frame.url),
                                                           "surface": "content" if not player
                                                           and frame == driver.page.main_frame else "body",
@@ -391,9 +459,21 @@ class CourseItem:
                                                           "course_launch": opens},
                               "control_text": display, "opens_popup": opens, "prompt": prompt,
                               "question": control["question"], "checked": control.get("checked", False),
+                              "toggle": control.get("toggle", False),
                               "is_answer": bool(prompt) or role in {"radio", "checkbox"}})
         if self.item.get("requirement") == "must_submit":
             return self.survey_steps(steps)
+        personal_groups = {}
+        for step in steps:
+            loc = step["locator"]
+            if loc["role"] == "radio" and personal_question(step["question"]):
+                personal_groups.setdefault((loc["frame"], loc["group"]), []).append(step)
+        for choices in personal_groups.values():
+            if not any(s["checked"] for s in choices):
+                pick, = self.profile.choose(choices[0]["question"], [s["control_text"] for s in choices])
+                chosen = next(s for s in choices if s["control_text"] == pick)
+                return [{**chosen, "locator":{**chosen["locator"], "survey_choice":True},
+                         "selection_rule":"L16", "record_personal":True}]
         if self.response_required or any(s["prompt"] and s["prompt"] != self.answered_prompt for s in steps):
             steps = [s for s in steps if not re.fullmatch(r"Next\s*\(Ctrl\+Alt\+Period\)", s["locator"]["name"], re.I)]
         return steps
@@ -408,8 +488,16 @@ class CourseItem:
                 loc["survey_choice"] = True
                 groups.setdefault((loc["frame"], loc["group"]), []).append(step)
         for choices in groups.values():
+            if MULTIPLE.search(choices[0]["question"]) and choices[0]["locator"]["role"] == "checkbox":
+                return choices + [s for s in steps if not s["is_answer"]]
             if any(s["checked"] for s in choices):
                 continue
+            prompt = choices[0]["question"]
+            if prompt and personal_question(prompt):
+                labels = [s["control_text"] for s in choices]
+                pick, = self.profile.choose(prompt, labels)
+                matched = next(s for s in choices if s["control_text"] == pick)
+                return [{**matched, "selection_rule":"L16", "record_personal":True}]
             if choices[0]["locator"]["role"] == "radio" and (preferred := mid_positive(choices)):
                 preferred["survey_preference"] = True
                 return [preferred]
@@ -418,9 +506,45 @@ class CourseItem:
         # the remaining choices available alongside Submit until the form posts.
         return [s for s in steps if not s["checked"] and s["locator"]["role"] != "radio"]
 
+    def select_all_steps(self, driver, steps, frames, capture, transcript):
+        from tools.browser.run import decide
+        groups = {}
+        for step in steps:
+            loc = step["locator"]
+            if loc["role"] == "checkbox" or step.get("toggle"):
+                groups.setdefault((loc["frame"], loc["group"]), []).append(step)
+        for (frame_key, group), choices in groups.items():
+            frame = next((f for f in frames if f["key"] == frame_key), {})
+            prompt = choices[0]["question"] or choices[0]["prompt"] or next(
+                (s for s in frame.get("text", "").splitlines() if MULTIPLE.search(s)), "")
+            if not MULTIPLE.search(prompt):
+                continue
+            labels = [s["target"] for s in choices]
+            key = (frame_key, group, prompt, tuple(labels))
+            personal = personal_question(prompt)
+            if key not in self.selection_plans:
+                if personal:
+                    exact = self.profile.choose(prompt, [s["control_text"] for s in choices])
+                    picks = [s["target"] for s in choices if s["control_text"] in exact]
+                else:
+                    task = dict(goal=prompt + " Select all plausible answers.", actions=choices, done_text="")
+                    picks = decide(task, capture, [frame], transcript, select_labels=labels)["labels"]
+                self.selection_plans[key] = set(picks)
+            selected = self.selection_plans[key]
+            for step in choices:
+                desired = step["target"] in selected
+                if step["checked"] != desired:
+                    loc = {**step["locator"], "survey_choice": desired, "expected_checked": desired}
+                    return [{**step, "locator": loc, "selection_rule": "L16" if personal else "L11"}]
+            if personal:
+                self.profile.record(prompt, [s["control_text"] for s in choices if s["target"] in selected])
+            steps = [s for s in steps if s not in choices]
+        return steps
+
 
 def perform_item(browser, dom, item, player, persist):
     page = player or choose_page(browser, item["url"], excluded_targets=dom.ended_targets)
+    dom.driven_page = page
     popups = []
     def listener(opened):
         popups.append(opened)
@@ -429,6 +553,7 @@ def perform_item(browser, dom, item, player, persist):
         return _perform_item(page, dom, item, player, persist, popups)
     finally:
         page.remove_listener("popup", listener)
+        dom.driven_page = None
 
 
 def _perform_item(page, dom, item, player, persist, popups):
@@ -443,17 +568,33 @@ def _perform_item(page, dom, item, player, persist, popups):
             return settled
         if reason := hard_block(driver):
             return Outcome("aborted", detail=reason)
-        if urlsplit(page.url)[:2] != urlsplit(item["url"])[:2]:
-            return Outcome("aborted", detail="The item link redirected to a different origin.")
         if page.url.startswith(ORIGIN + "/"):
             headings = page.locator('main h1:visible, #content h1:visible, main h2:visible, #content h2:visible').all_inner_texts()
-            if normalized(item["title"]) not in {normalized(s) for s in [page.title(), *headings]}:
+            titles = [re.sub(r"^(?:quiz|survey):\s*", "", s, flags=re.I) for s in [page.title(), *headings]]
+            if normalized(item["title"]) not in {normalized(s) for s in titles}:
                 return Outcome("aborted", detail="The displayed Canvas title did not match the queued item.")
+            base = public_url(page.url).rstrip("/")
+            if re.fullmatch(re.escape(ORIGIN) + r"/courses/\d+/quizzes/\d+", base):
+                existing = [p for p in page.context.pages if not p.is_closed() and public_url(p.url).rstrip("/") == base+"/take"]
+                if len(existing) == 1:
+                    page = existing[0]
+                    driver = Driver(page, dom.log)
+                    dom.log.write("resume-native", item["title"], "ok", 0, rule_used="L11",
+                                  detail="Resumed the open attempt for this exact Canvas quiz.")
     worker = CourseItem(item, persist, player, page.url, dom)
+    if player is None and web_origin(page.url) != web_origin(item["url"]):
+        # The just-opened, verified Canvas item URL itself launched the vendor in place.
+        worker.remember_popup(page)
     worker.launch_popups = popups
     goal = (f"Complete only {item['title']}. Use the visible instructions and transcript. "
             "Enable captions, mute and use the player's fullscreen control when available. "
             "Read and answer non-video content in place. Finish required responses before Next.")
+    if _course_id(item) == "532394" and normalized(item["title"]) == "decisions":
+        goal += (" Play the Introduction video and verify its playhead advances. Follow the six numbered activities "
+                 "from Initial Survey through Final Survey in their displayed order as they unlock.")
+    if _course_id(item) == "378851":
+        goal += (" Wait for the Harassment behaviors marker and open it when it appears. Complete the remaining "
+                 "visible markers, then the assessment. Continue past already-played videos.")
     done_text = "A recorded completion indicator on this exact Canvas item."
     if item.get("requirement") == "min_score":
         goal += " Follow the completion quiz through answer selection, Submit and results."
@@ -495,6 +636,8 @@ def canvas_command(args):
         browser = attach(pw)
         apply_running_popup_preference(browser)
         dom = CanvasDOM(browser, folder)
+        # attach() has verified the process, loopback endpoint and dedicated profile.
+        dom.cleanup_enabled = True
         if args.dry_run:
             _, report = dry_run(dom, args.dry_run, args.course, folder)
             print(json.dumps(report, ensure_ascii=True, indent=2))
@@ -504,6 +647,8 @@ def canvas_command(args):
                                          lambda i, p, save_state: perform_item(browser, dom, i, p, save_state))
         except ComputerHandoff:
             return 3
+        finally:
+            dom.cleanup_tabs(load(args.queue))
         lines = ["", "## Execution outcomes", ""]
         for item in queue["items"]:
             evidence = " " + quiz_summary(item) if item["requirement"] == "min_score" else ""
@@ -513,5 +658,7 @@ def canvas_command(args):
         lines.extend(f"- {i.get('title', i.get('key'))} — {i['reason']}." for i in deferred)
         with (folder / "report.md").open("a", encoding="utf-8") as report_file:
             report_file.write("\n".join(lines) + "\n")
+        from tools.collect_lessons import main as collect_lessons
+        collect_lessons(dom.log.path)
         print(json.dumps({"items": queue["items"], "deferred": deferred}, ensure_ascii=True, indent=2))
         return 2 if deferred or any(i["status"] == "blocked" for i in queue["items"]) else 0

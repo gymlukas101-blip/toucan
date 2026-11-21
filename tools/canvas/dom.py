@@ -91,6 +91,15 @@ class CanvasDOM:
         self._verification_pages = {}
         self._listing_kinds = {}
         self.ended_targets = set()
+        self.driven_page = None
+        self.cleanup_enabled = False
+
+    def cleanup_tabs(self, queue):
+        from tools.canvas.tabs import cleanup
+        if not self.cleanup_enabled:
+            return
+        cleanup(self.context, queue, self.ended_targets, self.log, driven=self.driven_page,
+                canvas_pages=self._verification_pages.values())
 
     def _page(self, path, *, courses=False):
         for page in self.context.pages:

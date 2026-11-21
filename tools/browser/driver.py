@@ -56,7 +56,7 @@ class RunLog:
         self.lessons = lesson_rules(LESSONS.read_text(encoding="utf-8"))
 
     def write(self, action, target, result, ms, *, driver="cdp", tier="T0", basis="domain", detail="",
-              source=None, elements=None, reason=None, rule_used=None, url=None):
+              source=None, elements=None, reason=None, rule_used=None, url=None, tabs_before=None, tabs_after=None):
         record = dict(t=datetime.now(timezone.utc).isoformat(), action=action, target=target,
                       result=result, tier=tier, basis=basis, ms=round(ms), driver=driver)
         if detail:
@@ -65,6 +65,8 @@ class RunLog:
             record["source"] = source
         if elements is not None:
             record["elements"] = elements
+        if tabs_before is not None:
+            record.update(tabs_before=tabs_before, tabs_after=tabs_after)
         if reason is not None:
             record["reason"] = reason
         if url:
@@ -291,6 +293,7 @@ class Driver:
                         for c in controls.evaluate_all(CONTROL_INFO, True):
                             if (c["role"] == spec["role"] and c["name"] == name and not c["disabled"]
                                     and c["group"] == spec.get("group", "")
+                                    and c.get("position") == spec.get("position") and c.get("peerCount") == spec.get("peers")
                                     and (not spec.get("control_id") or c["id"] == spec["control_id"])):
                                 matches.append(controls.nth(c["index"]))
                     return matches
@@ -303,47 +306,7 @@ class Driver:
                 if found:
                     self.check_player()
                     control = found[0]
-                    course_launch = spec.get("course_launch") and spec.get("role") in {"button", "link"}
-                    if spec.get("survey_choice"):
-                        selected = control.evaluate("""e => {
-                            const checked = () => e.checked === true || e.getAttribute('aria-checked') === 'true';
-                            if (!checked()) e.click();
-                            return checked();
-                        }""")
-                        if not selected:
-                            raise ActionFailure("miss", "The survey answer did not register.")
-                        return "survey answer selected"
-                    if ("surface" in spec and not course_launch and urlsplit(control.page.url).hostname == "canvas.wisc.edu"
-                            and re.fullmatch(r"(?:take (?:the )?(?:quiz|survey)|submit(?: quiz| survey)?)", name, re.I)):
-                        control.evaluate("e => e.click()")
-                        return "Canvas form control"
-                    if "surface" in spec and not course_launch and control.evaluate(
-                            "e => e.getRootNode() instanceof ShadowRoot || e.hasAttribute('onclick')"):
-                        control.evaluate("e => e.click()")
-                        return "course control"
-                    if (spec.get("role") in {"radio", "checkbox"} and control.is_enabled()
-                            and control.evaluate("e => e.closest('label')?.control === e")):
-                        label = control.locator("xpath=ancestor::label[1]")
-                        if label.evaluate("""el => {
-                            el.scrollIntoView({behavior:'instant', block:'nearest', inline:'nearest'});
-                            const r = el.getBoundingClientRect();
-                            return el.contains(document.elementFromPoint(r.x + r.width/2, r.y + r.height/2));
-                        }"""):
-                            guarded_click(lambda: label.click(force=True, timeout=2000))
-                            return "associated label"
-                    # Storyline places accessible shadow buttons over the SVG artwork. Verify the actual
-                    # hit belongs to the very same object before sending a click through the shadow.
-                    same_artwork = control.evaluate("""e => {
-                        if (!e.classList.contains('acc-shadow-el')) return false;
-                        e.scrollIntoView({behavior:'instant', block:'nearest', inline:'nearest'});
-                        const r = e.getBoundingClientRect();
-                        const hit = document.elementFromPoint(r.x + r.width/2, r.y + r.height/2);
-                        const shape = hit?.closest('.slide-object[data-model-id]');
-                        return !!shape && e.id === 'acc-' + shape.dataset.modelId;
-                    }""")
-                    force = bool(course_launch or same_artwork) and control.is_enabled()
-                    guarded_click(lambda: control.click(force=force, timeout=2000))
-                    return "named control"
+                    return self._activate_named(control, spec, name)
         if "point" in spec:
             x, y = spec["point"]
             if not all(isinstance(v, (float, int)) and math.isfinite(v) and 0 <= v < 1 for v in (x, y)):
@@ -353,6 +316,150 @@ class Driver:
             guarded_click(lambda: self.page.mouse.click(x * width, y * height))
             return "viewport point"
         raise ActionFailure("miss", "No visible control matched.")
+
+    def _activate(self, control, spec, name):
+        course_launch = spec.get("course_launch") and spec.get("role") in {"button", "link"}
+        if spec.get("survey_choice"):
+            selected = control.evaluate("""e => {
+                const checked = () => e.checked === true || e.getAttribute('aria-checked') === 'true';
+                if (!checked()) e.click();
+                return checked();
+            }""")
+            if not selected:
+                raise ActionFailure("miss", "The survey answer did not register.")
+            return "survey answer selected"
+        if ("surface" in spec and not course_launch and urlsplit(control.page.url).hostname == "canvas.wisc.edu"
+                and re.fullmatch(r"(?:take (?:the )?(?:quiz|survey)|submit(?: quiz| survey)?)", name, re.I)):
+            control.evaluate("e => e.click()")
+            return "Canvas form control"
+        if "surface" in spec and not course_launch and control.evaluate(
+                "e => e.getRootNode() instanceof ShadowRoot || e.hasAttribute('onclick')"):
+            control.evaluate("e => e.click()")
+            return "course control"
+        if (spec.get("role") in {"radio", "checkbox"} and control.is_enabled()
+                and control.evaluate("e => e.closest('label')?.control === e")):
+            label = control.locator("xpath=ancestor::label[1]")
+            if label.evaluate("""el => {
+                el.scrollIntoView({behavior:'instant', block:'nearest', inline:'nearest'});
+                const r = el.getBoundingClientRect();
+                return el.contains(document.elementFromPoint(r.x + r.width/2, r.y + r.height/2));
+            }"""):
+                guarded_click(lambda: label.click(force=True, timeout=2000))
+                return "associated label"
+        # Storyline places accessible shadow buttons over the SVG artwork. Verify the actual
+        # hit belongs to the very same object before sending a click through the shadow.
+        same_artwork = control.evaluate("""e => {
+            if (!e.classList.contains('acc-shadow-el')) return false;
+            e.scrollIntoView({behavior:'instant', block:'nearest', inline:'nearest'});
+            const r = e.getBoundingClientRect();
+            const hit = document.elementFromPoint(r.x + r.width/2, r.y + r.height/2);
+            const shape = hit?.closest('.slide-object[data-model-id]');
+            return !!shape && e.id === 'acc-' + shape.dataset.modelId;
+        }""")
+        force = bool(course_launch or same_artwork) and control.is_enabled()
+        guarded_click(lambda: control.click(force=force, timeout=2000))
+        return "named control"
+
+    def _click_state(self):
+        # Private in-memory evidence, including actual input properties and playheads.
+        states = []
+        for frame in visible_frames(self.page):
+            states.append((frame, frame.url, frame.evaluate("""() => {
+                const root = document.body;
+                if (!root) return null;
+                const controls = [];
+                const walk = scope => {
+                    for (const e of scope.querySelectorAll('*')) {
+                        if (e.shadowRoot) walk(e.shadowRoot);
+                        if (e.matches('input[type=hidden],input[type=password]') || !e.checkVisibility()) continue;
+                        if(e.matches('input,select,button,[role=button],[aria-checked],[aria-expanded],'
+                            +'[aria-pressed],[aria-selected],details,[data-clicked],.slide-object.shown'))
+                            controls.push([e.id,e.checked,e.selectedIndex,e.open,e.dataset.clicked,e.innerText,
+                                ...['aria-label','aria-checked','aria-expanded','aria-pressed','aria-selected']
+                                   .map(a=>e.getAttribute(a))]);
+                    }
+                };
+                walk(root);
+                return [root.innerText, controls,
+                    [...root.querySelectorAll('video,audio')].map(m=>[m.paused,m.currentTime])];
+            }""")))
+        return states
+
+    def _activate_named(self, control, spec, name):
+        # Popup creation and native form submission have their own acknowledgement path.
+        if spec.get("course_launch") or control.evaluate("e=>e.matches('a[target=_blank],input[type=submit],button[type=submit]')"):
+            return self._activate(control, spec, name)
+        if spec.get("survey_choice") and control.evaluate("e=>e.checked || e.getAttribute('aria-checked')==='true'"):
+            return "survey answer already selected"
+        element = control.element_handle(timeout=2000)
+        before = self._click_state()
+        opened = []
+        def on_popup(popup):
+            opened.append(popup)
+        self.page.on("popup", on_popup)
+        def changed():
+            deadline = time.monotonic() + .8
+            while True:
+                self.check_player()
+                if opened or self.page.is_closed() or self._click_state() != before:
+                    return True
+                if time.monotonic() >= deadline:
+                    return False
+                self.page.wait_for_timeout(80)
+        try:
+            try:
+                result = self._activate(control, spec, name)
+            except (PlaywrightTimeout, ActionFailure) as error:
+                if isinstance(error, ActionFailure) and error.result != "miss":
+                    raise
+                result = "named control"
+            if changed():
+                return result
+            self._check_input()
+            # Retain the exact DOM node. A replacement with the same label cannot inherit the click.
+            if not element.evaluate("e=>e.isConnected") or not control.evaluate("(e,original)=>e===original", element):
+                raise ActionFailure("miss", "The observed control was replaced.")
+            self.coordinate_click(element, name)
+            if changed():
+                return "coordinate retry"
+            raise ActionFailure("miss", "The named click and its coordinate retry produced no change.")
+        finally:
+            self.page.remove_listener("popup", on_popup)
+            element.dispose()
+
+    def coordinate_click(self, element, name):
+        element.scroll_into_view_if_needed(timeout=2000)
+        # Verify the top-level hit and each nested frame hit, including open shadow roots.
+        box = element.bounding_box()
+        if not box:
+            raise ActionFailure("miss", "The control has no visible centre.")
+        x, y = box["x"] + box["width"]/2, box["y"] + box["height"]/2
+        current = element
+        while current:
+            bounds = current.bounding_box()
+            if not bounds or not current.evaluate("""(e, offset) => {
+                const r=e.getBoundingClientRect(), px=r.left+offset[0]*r.width, py=r.top+offset[1]*r.height;
+                let hit=document.elementFromPoint(px,py);
+                while(hit?.shadowRoot){const child=hit.shadowRoot.elementFromPoint(px,py);
+                    if(!child || child===hit)break; hit=child;}
+                return !e.matches(':disabled,[aria-disabled=true]') && (e===hit || e.contains(hit) ||
+                    [...e.labels||[]].some(l=>l.contains(hit)) || (e.classList.contains('acc-shadow-el') &&
+                    e.id==='acc-'+hit?.closest('.slide-object[data-model-id]')?.dataset.modelId));
+            }""", [(x-bounds["x"])/bounds["width"], (y-bounds["y"])/bounds["height"]]):
+                raise ActionFailure("miss", "Another element covers the observed control centre.")
+            frame = current.owner_frame()
+            current = frame.frame_element() if frame and frame.parent_frame else None
+        self._check_input()
+        session = self.page.context.new_cdp_session(self.page)
+        started = time.monotonic()
+        try:
+            def dispatch():
+                for kind, buttons in (("mousePressed", 1), ("mouseReleased", 0)):
+                    session.send("Input.dispatchMouseEvent", dict(type=kind, x=x, y=y, button="left", buttons=buttons, clickCount=1))
+            guarded_click(dispatch)
+            self.log.write("coordinate-retry", str(name), "ok", (time.monotonic()-started)*1000, rule_used="L13")
+        finally:
+            session.detach()
 
     def click(self, target) -> Outcome:
         label = target if isinstance(target, str) else str(target.get("name") or target.get("label") or
@@ -445,7 +552,8 @@ class Driver:
             loader = session.send("Page.getFrameTree")["frameTree"]["frame"]["loaderId"]
             if page.url != url:
                 raise ActionFailure("miss", "The page navigated during capture.")
-            protected = page is self._course_popup or any(_player_address(f.url) for f in page.frames)
+            protected = (page is self._course_popup or bool(re.fullmatch(r"/courses/\d+/quizzes/\d+/take/?",urlsplit(url).path))
+                         or any(_player_address(f.url) for f in page.frames))
             for frame in page.frames:
                 if protected:
                     break

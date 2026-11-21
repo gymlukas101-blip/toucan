@@ -51,6 +51,10 @@ def mark(queue, key, status, note=""):
         if item["key"] == key:
             item.update(status=status, note=note)
             if status != "running":
+                if status in TERMINAL and item.get("canvas_verified") and item.get("player"):
+                    item["ended_player"] = item["player"]
+                    if item.get("player_identity"):
+                        item["ended_identity"] = item["player_identity"]
                 item.pop("player", None)
                 item.pop("player_identity", None)
                 item.pop("awaiting_verification", None)

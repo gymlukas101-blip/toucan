@@ -23,11 +23,22 @@ PATTERNS = {
 }
 
 
-def tracked_text(root: Path, staged: bool) -> list[str]:
-    command = ["git", "grep", "-I", "-l", "-z"]
+def paths_to_check(root: Path, staged: bool) -> list[str]:
     if staged:
-        command.append("--cached")
-    result = subprocess.run([*command, "-e", ".", "--"], cwd=root, stdout=subprocess.PIPE)
+        # A rename contributes a delete and an add, so each raw record names one path.
+        records = subprocess.check_output(
+            ["git", "diff", "--cached", "--raw", "-z", "--no-renames", "--diff-filter=AMT", "--"],
+            cwd=root,
+        ).split(b"\0")
+        return [
+            os.fsdecode(name)
+            for header, name in zip(records[::2], records[1::2])
+            if header.split()[1] != b"160000"  # Submodule entries point to commits.
+        ]
+
+    result = subprocess.run(
+        ["git", "grep", "-I", "-l", "-z", "-e", ".", "--"], cwd=root, stdout=subprocess.PIPE
+    )
     if result.returncode == 1:  # No nonempty tracked text files.
         return []
     result.check_returncode()
@@ -54,13 +65,13 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     mode = parser.add_mutually_exclusive_group()
     mode.add_argument("--fix", action="store_true", help="redact JWT parameters without staging changes")
-    mode.add_argument("--staged", action="store_true", help="check the content Git will commit")
+    mode.add_argument("--staged", action="store_true", help="check changed files in the Git index")
     args = parser.parse_args()
 
     top = subprocess.check_output(["git", "rev-parse", "--show-toplevel"]).rstrip(b"\r\n")
     root = Path(os.fsdecode(top)).resolve()
     hits = 0
-    for relative in tracked_text(root, args.staged):
+    for relative in paths_to_check(root, args.staged):
         path = root / relative
         if args.staged:
             data = subprocess.check_output(["git", "cat-file", "blob", f":0:{relative}"], cwd=root)
@@ -80,7 +91,7 @@ def main() -> int:
     if hits:
         print(f"{hits} secret(s). Redact the affected files and stage the clean versions.")
         return 1
-    print("no secrets in tracked files")
+    print("no secrets in staged changes" if args.staged else "no secrets in tracked files")
     return 0
 
 

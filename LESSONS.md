@@ -88,11 +88,16 @@ evidence and retain rules that cover recurring failures.
   If nested frames share a name, locate the visible launch button in its
   own frame. StandUp had two frames named `ScormContent`. Only the inner
   frame displayed “Launch Course”, and both name-based clicks missed.
+  StandUp also opened a player while its Canvas assignment was settling.
+  Match the existing window's opener to the assignment and check its title
+  and START control before issuing another launch.
 - [L07] Read the requirement label and the title link separately. Module 3 and
   Module 4 both showed “Score at least 100.0”. Only Module 3 had a link.
   Keep a requested locked item in the plan by its row ID until its link opens.
   The Module 4 preview listed the locked Post-Survey second with the label
   “Submit”. Canvas also displays instruction headers as plain text.
+  Preserve an explicitly requested sequence during rescans. Alcohol Awareness
+  listed Part 2 first, while the owner requested Decisions followed by Part 2.
 
 ## Attestations
 

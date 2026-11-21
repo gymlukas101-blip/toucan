@@ -89,6 +89,9 @@ Updated: 2026-11-21
 | 2026-11-21 | Free Expression pages and quiz entry | 8m38s | - | 0 | 127/56/0 | 0 | 1 | 0 | 12 pages viewed, quiz unscored |
 | 2026-11-21 | GetWIse, ActWIse track | 2h3m27s | - | 21 | 516/189/0 | 72 | 0 | 0 | Program 100%, surveys 10/10 each, certification 1/1 |
 | 2026-11-21 | StandUp to Hazing launch | 1m54s | - | 3 | 10/15/0 | 0 | 0 | 0 | No submission, out of 100 |
+| 2026-11-21 | GetWIse, four-program queue | 42m25s | - | 145 | 515/511/0 | 34 | 0 | 0 | Three additional pre-surveys submitted. Three program scores pending. |
+| 2026-11-21 | StandUp, assignment-list queue | 11m50s | - | 27 | 116/101/0 | 0 | 2 | 0 | Canvas showed No Submission, 100 points possible. |
+| 2026-11-21 | Alcohol Awareness, ordered assignment queue | 6m29s | - | 6 | 44/28/0 | 0 | 3 | 0 | Canvas showed No Submission on both assignments. |
 
 Populate from run.jsonl after each run. Use a dash for unavailable measurements.
 The stalls column counts actions logged with the result `stall`. StandUp's

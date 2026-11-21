@@ -1,9 +1,10 @@
+# Configure Git hooks and validate Toucan's tracked files and memory.
 $ErrorActionPreference = 'Stop'
 
 Push-Location -LiteralPath $PSScriptRoot
 try {
     git config --local core.hooksPath .githooks
-    if ($LASTEXITCODE -ne 0) { throw 'Could not configure the repository hooks path.' }
+    if ($LASTEXITCODE -ne 0) { throw "Could not configure Toucan's Git hooks path." }
 
     py -3 tools/check_secrets.py
     if ($LASTEXITCODE -ne 0) { throw 'The tracked-file secret check failed.' }

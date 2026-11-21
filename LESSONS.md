@@ -1,6 +1,6 @@
-# Lessons
+# Toucan lessons
 
-Rules from real runs. Read before every run. If a rule proves wrong, fix or
+Rules from Toucan runs. Read before every run. If a rule proves wrong, fix or
 retire it in the same change and say why.
 
 ## Answering

@@ -1,4 +1,7 @@
-# TASKRUNNER
+# Toucan
+
+Toucan is a local Windows agent for Canvas coursework. It records transcripts,
+quiz results, and lessons from each run.
 
 ## Setup
 

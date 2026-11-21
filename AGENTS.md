@@ -1,6 +1,7 @@
-# School work
+# Toucan
 
-Applies to every session under the project root.
+These schoolwork rules apply to every session under the Toucan project root.
+The current checkout is `C:\Users\gymlu\OneDrive\Documents\Toucan`.
 
 ## Environment
 - Windows 11, single display. Computer Use is foreground-only: the pointer and

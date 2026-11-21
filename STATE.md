@@ -1,4 +1,4 @@
-# State
+# Toucan state
 
 Updated: 2026-11-20
 
@@ -10,7 +10,7 @@ Updated: 2026-11-20
   `canvas-scorm-module` skill is registered in the real profile.
 - Canvas recorded Module 2, “U Gotta Know When It's Wrong,” as **Complete** at
   6:58 p.m. Central. The player reported **100%, Passed** on one submission.
-  The agent operated the lesson and its checkpoints. The user supplied the
+  Toucan operated the lesson and its checkpoints. The user supplied the
   lack-of-consent answer and the final completion confirmation. Seven in-video
   answers were tagged `domain`. [Run report](report.md)
 - The transcript contains 597 timestamped caption lines. Capture has a gap
@@ -33,6 +33,7 @@ Updated: 2026-11-20
 
 ## Decisions
 
+- Renamed TaskRunner to Toucan 2026-11-20. Repo, folder, and agent name. Files in report.md, transcript.md and screenshots/ keep the old name — they are historical.
 - Run Computer Use on the local desktop.
 - Coursework submissions run autonomously. Reserve an approval step for the
   future `exam` class.
@@ -67,8 +68,8 @@ answers, first-pass score and zero retakes.
 ## Open
 
 - Module 3 is ready to start.
-- The repository is under OneDrive. A later move to `C:\Users\gymlu\school`
-  remains optional.
+- Toucan lives at `C:\Users\gymlu\OneDrive\Documents\Toucan`. A later move
+  to `C:\Users\gymlu\school` remains optional.
 
 ## Next
 

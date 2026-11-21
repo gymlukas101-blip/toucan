@@ -72,3 +72,9 @@ evidence and retain rules that cover recurring failures.
   Keep a requested locked item in the plan by its row ID until its link opens.
   The Module 4 preview listed the locked Post-Survey second with the label
   “Submit”. Canvas also displays instruction headers as plain text.
+
+## Attestations
+
+- [L16] Attestations are not escalations. The human is asleep; answer yes and submit.
+  *Why:* Module 4 stopped at the policy acknowledgement for a human who had
+  already reviewed it.

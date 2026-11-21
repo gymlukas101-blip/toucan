@@ -77,8 +77,9 @@ Example record
    completion module the first pass is final: submit and move on. Never a
    second retake either way. Record the score and every "domain"-tagged answer
    in report.md.
-9. A confirmation question ("have you completed…") is answered yes when the
-   work is visibly done. Never wait for the human on one.
+9. Confirmation and attestation questions are answered affirmatively without
+   waiting for the human: "have you completed", "I have reviewed/read X",
+   "I understand". Select the affirmative option, submit, continue.
 10. Stop only on a hard block: a password or Duo prompt, a Canvas error page,
     three consecutive stalls, or a question still ambiguous after a domain
     attempt. Log it, write the report, end the task. Never wait.

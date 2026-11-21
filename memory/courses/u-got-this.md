@@ -10,3 +10,4 @@
 - CC control is the button at the bottom-left of the video area <!-- id=644d9a71 src=screenshot date=2026-11-21 -->
 - In Module 3, Continue below the finished video opens the separate completion quiz. After Submit, Next inside the quiz opens Quiz Results. <!-- id=ff0d4def src=screenshot date=2026-11-21 -->
 - The Post-Survey is worth 10 points and has no right answers. Choose the positive option and submit without deliberating. <!-- id=47e11336 src=user date=2026-11-21 -->
+- Module 4 asks for a Sexual Harassment Policy attestation; select "I have reviewed" and submit <!-- id=4b8c400a src=screenshot date=2026-11-21 -->

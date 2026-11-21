@@ -57,7 +57,7 @@ class CanvasQueueTests(unittest.TestCase):
 
     def test_requirement_vocabulary(self):
         cases = {"Submitted": "must_submit", "Score at least 9": "min_score", "Scored at least 9.5": "min_score",
-                 "Must view": "mark_done", "Mark as done": "mark_done", "Submit": "unknown", "": "unknown"}
+                 "Must view": "mark_done", "Mark as done": "mark_done", "Submit": "must_submit", "": "unknown"}
         for label, expected in cases.items():
             with self.subTest(label=label):
                 self.assertEqual(requirement(label), expected)
@@ -273,7 +273,7 @@ class BackgroundSnapshotTests(unittest.TestCase):
                     rows = dom.modules("42")
                 self.assertEqual([r["state"] for r in rows], ["complete", "pending", "complete", "locked", "locked",
                                                                "instruction", "pending", "pending", "pending", "pending"])
-                self.assertEqual([r["requirement"] for r in rows[-3:]], ["unknown", "mark_done", "mark_done"])
+                self.assertEqual([r["requirement"] for r in rows[-3:]], ["must_submit", "mark_done", "mark_done"])
                 self.assertEqual(rows[2]["requirement"], "mark_done")
                 allowed = CourseItem(rows[1], lambda: None).controls(Mock(page=page))
                 self.assertEqual([(s["action"], s["locator"]["name"]) for s in allowed], [("play", "Play")])

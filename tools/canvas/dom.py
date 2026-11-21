@@ -19,7 +19,7 @@ def requirement(label, check=False):
     label = " ".join(label.casefold().split())
     if label in {"✓", "✔", "☑"}:
         return "mark_done"
-    if label == "submitted":
+    if label in {"submit", "submitted"}:
         return "must_submit"
     if re.fullmatch(r"score(?:d)? at least\s+\d+(?:\.\d+)?(?:\s*(?:%|points?|pts))?", label):
         return "min_score"

@@ -19,6 +19,7 @@ from tools.browser.driver import Driver, Outcome, public_url, visible_frames
 from tools.browser.launch import launch
 from tools.browser.player import PlayerEnded, player_ended, player_identity as _player_identity, target_id
 from tools.browser.run import BLOCKED, choose_page, hard_block, run_loop
+from tools.canvas.completion import SUBMIT, quiz_evidence, quiz_summary
 from tools.canvas.dom import CanvasDOM, ORIGIN
 from tools.canvas.plan import course_order, plan, queue_item, whole_course_row
 from tools.canvas.resolve import normalized
@@ -76,14 +77,14 @@ def _course_id(item):
     return str(cid)
 
 
-def _item_ended(item, log):
+def _item_ended(item, log, detail="The recorded player target left its document."):
     if not item.get("awaiting_verification"):
         item["awaiting_verification"] = True
         if item.get("player"):
             item["ended_player"] = item["player"]
         item.pop("handoff", None)
         if log is not None:
-            log.write("item-ended", item["title"], "item-ended", 0, tier="T1", rule_used="L14")
+            log.write("item-ended", item["title"], "item-ended", 0, tier="T1", rule_used="L14", detail=detail)
 
 
 def _reconcile(queue, dom):
@@ -184,7 +185,7 @@ def walk_queue(path, dom, open_players, perform):
                     save(path, queue)
                     handoff(dom.log)
             if outcome.result == "item-ended":
-                _item_ended(item, dom.log)
+                _item_ended(item, dom.log, outcome.detail)
                 # A failed listing read can be retried without opening the old player.
                 save(path, queue)
             # A player score, closed popup or model decision alone cannot complete a row.
@@ -218,11 +219,71 @@ def live_players(browser, queue, log=None):
 class CourseItem:
     """Bind the current row to its content controls and any player it actually opens."""
 
-    def __init__(self, item, persist, player=None, entry_url=None):
+    def __init__(self, item, persist, player=None, entry_url=None, dom=None):
         self.item = item
         self.persist = persist
         self.player = player
+        self.dom = dom
+        self.response_required = False
+        self.answered_prompt = ""
         self.entry_identity = _player_identity(entry_url or item["url"])
+
+    def _milestone(self, driver, key, value, action, detail):
+        quiz = self.item.setdefault("quiz", {})
+        if quiz.get(key) != value:
+            quiz[key] = value
+            self.persist()
+            driver.log.write(action, self.item["title"], "ok", 0, tier="T1", source="dom", detail=detail)
+
+    def observe_quiz(self, driver, frames):
+        if driver.page is self.player:
+            for frame in frames:
+                text = frame["text"]
+                slide = re.search(r"^slide:[ \t]*([^\n]+)", text, re.I | re.M)
+                if slide and (name := slide[1].strip()[:160]) != self.item.get("last_slide"):
+                    self.response_required = False
+                    self.answered_prompt = ""
+                    self.item["last_slide"] = name
+                    self.persist()
+                    driver.log.write("slide", self.item["title"], "ok", 0, tier="T1", source="dom", detail=name)
+                if (not self.response_required and re.search(r"you must (?:complete|answer|select|enter) "
+                        r"[^.\n]{0,100}before (?:continuing|going on|moving on)|response (?:is )?required",
+                        text, re.I)):
+                    self.response_required = True
+                    driver.log.write("response-required", self.item["title"], "ok", 0, tier="T1", source="dom",
+                                     detail=self.item.get("last_slide", "Current activity"))
+            reached, score = quiz_evidence(frames)
+            if reached:
+                self._milestone(driver, "reached", True, "quiz-reached", "Visible completion quiz or quiz results.")
+            if score and self.item.get("quiz", {}).get("submitted"):
+                self._milestone(driver, "score", score, "quiz-score", score)
+
+    def is_quiz_submit(self, step):
+        name = step.get("control_text") or step.get("locator", {}).get("name", "")
+        return self.item.get("quiz", {}).get("reached") and SUBMIT.fullmatch(name)
+
+    def answered(self, step):
+        self.response_required = False
+        self.answered_prompt = step.get("prompt", "")
+
+    def record_submit(self, driver, *, dispatched):
+        if dispatched:
+            self._milestone(driver, "submitted", True, "quiz-submit-clicked", "Submit click dispatched.")
+        else:
+            self._milestone(driver, "attempted", True, "quiz-submit-attempt", "About to activate the quiz Submit control.")
+
+    def completion_proof(self, driver, frames):
+        if driver.page is self.player:
+            _, score = quiz_evidence(frames)
+            if score and self.item.get("quiz", {}).get("submitted"):
+                return f"Quiz submitted. Visible player score {score}. Canvas verification is pending."
+        # The Canvas row can confirm an auto-submission or one made before a resume.
+        if self.dom:
+            for row in self.dom.modules(_course_id(self.item), refresh=True):
+                if (row["key"] == self.item["key"] and row["url"] in {"", self.item["url"]}
+                        and row["state"] == "complete"):
+                    return "Canvas confirmed completion: " + (row["label"] or "checkmark")
+        return ""
 
     def at_item(self, page):
         if page.is_closed():
@@ -252,6 +313,8 @@ class CourseItem:
                 raise PlayerEnded("The player ended during launch. Verify completion on Canvas.") from error
             raise
         self.item.update(player=target, player_identity=identity)
+        self.item.pop("quiz", None)
+        self.item.pop("last_slide", None)
         self.persist()
 
     def controls(self, driver):
@@ -266,32 +329,50 @@ class CourseItem:
                 content = frame.locator("#content, main, [role=main]").first
                 if content.count():
                     surface = content
-            controls = surface.evaluate("""el => Array.from(el.querySelectorAll(
+            controls = surface.evaluate("""el => {
+                const shapes = [...el.querySelectorAll('.slide-object.shown[data-acc-text]')].filter(e =>
+                    e.checkVisibility({opacityProperty:true}) && e.getClientRects().length);
+                const question = shapes.map(e => e.dataset.accText.trim()).find(t => t.endsWith('?')) || '';
+                const artwork = new Map(shapes.map(e => ['acc-' + e.dataset.modelId, e.dataset.accText.trim()]));
+                return Array.from(el.querySelectorAll(
                 'button,[role=button],[role=radio],[role=checkbox],input[type=submit],input[type=radio],input[type=checkbox]'
             )).filter(c => c.checkVisibility() && c.getClientRects().length && !c.disabled
+                && !c.closest('[inert]') && !c.closest('.quiz__card:not(.quiz__card--active)')
                 && c.getAttribute('aria-disabled') !== 'true').map(c => ({
                 name: (c.getAttribute('aria-labelledby') || '').split(/ +/).filter(Boolean)
                             .map(id => document.getElementById(id)?.innerText || '').join(' ').trim()
                     || c.getAttribute('aria-label') || Array.from(c.labels || []).map(l => l.innerText).join(' ').trim()
                     || c.innerText?.trim() || c.title || c.value || '',
-                role: c.getAttribute('role') || (['radio','checkbox'].includes(c.type) ? c.type : 'button')
-            }))""")
+                role: c.getAttribute('role') || (['radio','checkbox'].includes(c.type) ? c.type : 'button'),
+                artwork: artwork.get(c.id) || '',
+                prompt: c.classList.contains('acc-shadow-el') && artwork.has(c.id) ? question : ''
+            }))}""")
             for control in controls:
                 name, role = control["name"], control["role"]
-                if (not name or BLOCKED.search(name) or re.search(r"\b(?:complete all items|delete|withdraw)\b", name, re.I)
-                        or (not player and re.match(r"^(?:next|previous|back|modules?)\b", name, re.I))):
+                # A Storyline shadow button can literally be named "[object Object]".
+                # Present the matching slide artwork while keeping the browser's actual locator.
+                display = control["artwork"] if name == "[object Object]" and control["artwork"] else name
+                prompt = control["prompt"]
+                if re.search(r"captions?|accessibility|^(?:continue|next|previous|ok|submit|start course)$", display, re.I):
+                    prompt = ""
+                if (not name or BLOCKED.search(display) or re.search(r"\b(?:complete all items|delete|withdraw)\b", display, re.I)
+                        or (not player and re.match(r"^(?:next|previous|back|modules?)\b", display, re.I))):
                     continue
                 opens = bool(re.fullmatch(r"load .+ in a new window", name, re.I))
                 if opens and normalized(self.item["title"]) not in normalized(name):
                     continue
                 frame_key = frame.name or public_url(frame.url)
-                label = f"{name} [{role}, {frame_key}]"
+                label = f"{display} [{role}, {frame_key}]"
                 if label in seen:
                     continue
                 seen.add(label)
                 steps.append({"action": "play" if name.casefold() in {"play", "resume playback"} else "click",
-                              "target": label, "locator": {"name": name, "role": role, "frame": frame_key},
-                              "opens_popup": opens, "is_answer": role in {"radio", "checkbox"}})
+                              "target": label, "locator": {"name": name, "role": role, "frame": frame_key,
+                                                          "course_launch": opens},
+                              "control_text": display, "opens_popup": opens, "prompt": prompt,
+                              "is_answer": bool(prompt) or role in {"radio", "checkbox"}})
+        if self.response_required or any(s["prompt"] and s["prompt"] != self.answered_prompt for s in steps):
+            steps = [s for s in steps if not re.fullmatch(r"Next\s*\(Ctrl\+Alt\+Period\)", s["locator"]["name"], re.I)]
         return steps
 
 
@@ -314,11 +395,16 @@ def perform_item(browser, dom, item, player, persist):
             headings = page.locator('main h1:visible, #content h1:visible, main h2:visible, #content h2:visible').all_inner_texts()
             if normalized(item["title"]) not in {normalized(s) for s in [page.title(), *headings]}:
                 return Outcome("aborted", detail="The displayed Canvas title did not match the queued item.")
-    worker = CourseItem(item, persist, player, page.url)
-    task = dict(url=page.url, goal=f"Complete only {item['title']}. Use the visible instructions and transcript. "
-                "Enable captions, mute and use the player's fullscreen control when available. Read and answer "
-                "non-video content in place. Report completion when the player or assignment confirms it.",
-                done_text="Visible confirmation of this item's completion", actions=[])
+    worker = CourseItem(item, persist, player, page.url, dom)
+    goal = (f"Complete only {item['title']}. Use the visible instructions and transcript. "
+            "Enable captions, mute and use the player's fullscreen control when available. "
+            "Read and answer non-video content in place. Finish required responses before Next.")
+    done_text = "A recorded completion indicator on this exact Canvas item."
+    if item.get("requirement") == "min_score":
+        goal += " Follow the completion quiz through answer selection, Submit and results."
+        done_text = ("A posted quiz score on this item's results screen after Submit, "
+                     "or a recorded completion indicator on this exact Canvas item.")
+    task = dict(url=page.url, goal=goal + " A Thank you or exit screen carries no credit.", done_text=done_text, actions=[])
     directory = dom.run_dir / ("item-" + re.sub(r"[^a-zA-Z0-9_-]", "_", item["key"])[:100])
     directory.mkdir(parents=True, exist_ok=True)
     with tempfile.TemporaryDirectory(dir=directory) as capture:
@@ -358,7 +444,11 @@ def canvas_command(args):
         except ComputerHandoff:
             return 3
         lines = ["", "## Execution outcomes", ""]
-        lines.extend(f"- {i['title']} — {i['status']}. {i['note']}" for i in queue["items"])
+        for item in queue["items"]:
+            evidence = " " + quiz_summary(item) if item["requirement"] == "min_score" else ""
+            if item.get("last_slide"):
+                evidence += " Last observed slide: " + item["last_slide"] + "."
+            lines.append(f"- {item['title']} — {item['status']}. {item['note']}{evidence}")
         lines.extend(f"- {i.get('title', i.get('key'))} — {i['reason']}." for i in deferred)
         with (folder / "report.md").open("a", encoding="utf-8") as report_file:
             report_file.write("\n".join(lines) + "\n")

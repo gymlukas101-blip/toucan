@@ -8,3 +8,4 @@
 - Quiz questions here are completion-style; a wrong answer does not drop the score below 100 <!-- id=01b84c9a src=user date=2026-11-21 -->
 - On an ambiguous question, answer and continue. Do not stop. <!-- id=4f84e536 src=user date=2026-11-21 -->
 - CC control is the button at the bottom-left of the video area <!-- id=644d9a71 src=screenshot date=2026-11-21 -->
+- In Module 3, Continue below the finished video opens the separate completion quiz. After Submit, Next inside the quiz opens Quiz Results. <!-- id=ff0d4def src=screenshot date=2026-11-21 -->

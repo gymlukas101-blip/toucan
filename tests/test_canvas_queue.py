@@ -289,12 +289,17 @@ class BackgroundSnapshotTests(unittest.TestCase):
                     path.write_bytes(b"local fixture viewport")
                     return Outcome("ok")
                 finish = dict(action="done", target="", text="", basis="domain", rule_used="L04")
-                with patch("tools.browser.driver.Driver.shot", pixels), patch("tools.browser.run.decide", return_value=finish):
+                posted = dict(item, state="complete", label="Scored at least 1.0")
+                with patch("tools.browser.driver.Driver.shot", pixels), patch("tools.browser.run.decide", return_value=finish), \
+                     patch.object(dom, "modules", side_effect=[[item], [posted]]) as verify:
                     completed = perform_item(browser, dom, item, None, lambda: None)
                 self.assertTrue(completed.ok, completed)
-                self.assertIn("Canvas verification is pending", completed.detail)
+                self.assertEqual(verify.call_count, 2)
+                verify.assert_called_with("42", refresh=True)
+                self.assertIn("Scored at least 1.0", completed.detail)
                 records = [json.loads(line) for line in dom.log.path.read_text(encoding="utf-8").splitlines()]
-                self.assertEqual([r["rule_used"] for r in records if r["action"] == "decide"], ["L04"])
+                self.assertEqual([r["rule_used"] for r in records if r["action"] == "decide"], ["L04", "L04"])
+                self.assertEqual(sum(r["action"] == "done-unverified" for r in records), 1)
                 self.assertEqual(page.evaluate("window.fixtureClicks"), 0)
             finally:
                 page.close()

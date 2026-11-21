@@ -1,9 +1,13 @@
 # Toucan state
 
-Updated: 2026-11-20
+Updated: 2026-11-21
 
 ## Proven
 
+- Canvas recorded Module 3 as Complete on November 21 at 2:02 a.m. Central.
+  The quiz showed 100% and Passed after one submission. The Modules row read
+  “Scored at least 100.0”. The evidence is in the local Toucan run
+  `module3-rerun-20261121T071810Z`.
 - Computer Use ran locally on the Windows 11 Dell XPS 15 9530. The verified
   profile is `C:\Users\gymlu`. The path `C:\Users\gymluka` does not exist.
 - Codex loaded the global and project AGENTS.md files. The
@@ -78,8 +82,11 @@ Updated: 2026-11-20
 | 2026-11-21 | 3 incomplete run | ~7m | - | - | 62/44/0 | 0 | 2 | 0 | - |
 | 2026-11-21 | 3 continuation | ~17m | - | - | 84/108/0 | 1 | 0 | 0 | - |
 | 2026-11-21 | 3–4 Canvas completion check | 6.58s | - | - | 3/3/0 | 0 | 0 | 0 | - |
+| 2026-11-21 | 3 rerun and grade verification | 43m45s | - | 87 | 217/284/0 | 3 | 1 | 0 | 100% |
 
 Populate from run.jsonl after each run. Use a dash for unavailable measurements.
+The Module 3 rerun counts the 87 decisions and 501 logged actions through
+the Canvas grade read. An additional screenshot captured the settled score dial.
 Module 2 predates run.jsonl. Its tier mix and single stall come from the
 supplied retrospective. The original run.log has no per-action tier or
 explicit stall count. The [report](report.md) records the seven domain
@@ -87,16 +94,15 @@ answers, first-pass score and zero retakes.
 
 ## Open
 
-- The DOM-only preview resolved “U Got This” to course 532511. Module 3 has
-  an active link and a 100-point minimum. Module 4 and the Post-Survey have
-  grey titles and no item links. The requested queue can admit Module 4
-  when its own link becomes available after a completion check.
+- In course 532511, Module 4 unlocked after Module 3 posted. Its row shows
+  “Score at least 100.0”. The Post-Survey remains locked. The Module 3 rerun
+  stopped after verifying its own grade.
 - Toucan lives at `C:\Users\gymlu\OneDrive\Documents\Toucan`. A later move
   to `C:\Users\gymlu\school` remains optional.
 
 ## Next
 
-Before starting Module 3, move the chat “Inspect open desktop windows” to
+For a fresh coursework chat, move the chat “Inspect open desktop windows” to
 Toucan, remove the old TaskBot entry, then add or select the project at
 `C:\Users\gymlu\OneDrive\Documents\Toucan`. Start a fresh chat in that
 project and verify it answers `Quote rule 1 from AGENTS.md.`

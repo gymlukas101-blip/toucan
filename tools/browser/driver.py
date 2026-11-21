@@ -89,13 +89,21 @@ def guarded_click(click: Callable[[], None]):
 def visible_frames(page: Page) -> list[Frame]:
     visible = []
     for frame in page.frames:
+        if frame.is_detached():
+            continue
         parent = frame
-        while parent.parent_frame:
-            if not parent.frame_element().is_visible():
-                break
-            parent = parent.parent_frame
-        else:
-            visible.append(frame)
+        try:
+            while parent.parent_frame:
+                if not parent.frame_element().is_visible():
+                    break
+                parent = parent.parent_frame
+            else:
+                visible.append(frame)
+        except Error:
+            # Frame enumeration is a snapshot. A helper iframe can disappear
+            # while its element is inspected. The bound player's listener handles its own loss.
+            if not frame.is_detached() and not parent.is_detached():
+                raise
     return visible
 
 
@@ -163,15 +171,19 @@ class Driver:
 
     def read(self) -> Outcome:
         def observe():
-            controls = """els => els.filter(e => e.checkVisibility() && e.getClientRects().length).map(e => ({
+            controls = """els => els.filter(e => e.checkVisibility() && e.getClientRects().length
+                && !e.closest('[inert]') && !e.closest('.quiz__card:not(.quiz__card--active)')).map(e => ({
                 role: e.getAttribute('role') || (e.tagName === 'A' ? 'link' : 'button'),
                 name: (e.getAttribute('aria-labelledby') || '').split(/ +/).filter(Boolean)
                         .map(id => document.getElementById(id)?.innerText || '').join(' ').trim()
                     || e.getAttribute('aria-label') || e.innerText?.trim() || e.value || e.title || ''
             })).filter(c => c.name)"""
             selector = "button,a[href],[role=button],[role=link],input[type=submit],input[type=button]"
+            # Rise pre-renders an inert results card with a failing score before Start Quiz.
+            # Only the active card describes the learner's current question or result.
+            content = "body => (body.querySelector('.quiz__card--active') || body).innerText"
             return [dict(name=f.name, url=public_url(f.url), main=f == self.page.main_frame,
-                         text=f.locator("body").inner_text(timeout=2000),
+                         text=f.locator("body").evaluate(content, timeout=2000),
                          controls=f.locator(selector).evaluate_all(controls))
                     for f in visible_frames(self.page) if f.locator("body").count()]
         return self._action("read", "visible frame text", observe, tier="T1")
@@ -245,7 +257,31 @@ class Driver:
                     raise ActionFailure("ambiguous", "More than one visible control matches the target.")
                 if found:
                     self.check_player()
-                    guarded_click(lambda: found[0].click(timeout=2000))
+                    control = found[0]
+                    course_launch = (spec.get("course_launch") and spec.get("role") == "button"
+                                     and isinstance(name, str) and re.fullmatch(r"load .+ in a new window", name, re.I))
+                    if (spec.get("role") in {"radio", "checkbox"} and control.is_enabled()
+                            and control.evaluate("e => e.closest('label')?.control === e")):
+                        label = control.locator("xpath=ancestor::label[1]")
+                        if label.evaluate("""el => {
+                            el.scrollIntoView({behavior:'instant', block:'nearest', inline:'nearest'});
+                            const r = el.getBoundingClientRect();
+                            return el.contains(document.elementFromPoint(r.x + r.width/2, r.y + r.height/2));
+                        }"""):
+                            guarded_click(lambda: label.click(force=True, timeout=2000))
+                            return "associated label"
+                    # Storyline places accessible shadow buttons over the SVG artwork. Verify the actual
+                    # hit belongs to the very same object before sending a click through the shadow.
+                    same_artwork = control.evaluate("""e => {
+                        if (!e.classList.contains('acc-shadow-el')) return false;
+                        e.scrollIntoView({behavior:'instant', block:'nearest', inline:'nearest'});
+                        const r = e.getBoundingClientRect();
+                        const hit = document.elementFromPoint(r.x + r.width/2, r.y + r.height/2);
+                        const shape = hit?.closest('.slide-object[data-model-id]');
+                        return !!shape && e.id === 'acc-' + shape.dataset.modelId;
+                    }""")
+                    force = bool(course_launch or same_artwork) and control.is_enabled()
+                    guarded_click(lambda: control.click(force=force, timeout=2000))
                     return "named control"
         if "point" in spec:
             x, y = spec["point"]

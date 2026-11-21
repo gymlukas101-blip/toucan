@@ -1,9 +1,10 @@
 # Toucan lessons
 
 Rules from Toucan runs. Read before every run. If a rule proves wrong, fix or
-retire it in the same change and say why. Keep at most 12 active rules. Give
+retire it in the same change and say why. Keep at most 15 active rules. Give
 each new rule a new, increasing ID. On overflow, delete the rule with the
-fewest recorded uses across runs. Break ties by deleting the lowest ID first.
+fewest recorded uses across runs. If a tie spans the cutoff, compare the run
+evidence and retain rules that cover recurring failures.
 
 ## Degradation vs stop
 
@@ -16,17 +17,28 @@ fewest recorded uses across runs. Break ties by deleting the lowest ID first.
   A silent stop strands the caller.
   *Why:* the run halted without 3, so nothing took over.
 - [L11] Locate a control from the frame before clicking. Video-area controls and
-  player chrome are different surfaces. *Why:* CC lives in the video area.
+  player chrome are different surfaces. On a question slide, select an answer
+  and verify its feedback before using Next. *Why:* CC lives in the video area.
+  In Module 3, Next repeated a response-required alert. Choosing a displayed
+  answer advanced the same reflection on the rerun.
 - [L13] Convert screenshot pixels to page coordinates before a positional click.
   *Why:* Windows display scaling made the first CC click miss its target.
-- [L14] A completion redirect or detached player frame ends the item. Stop
-  caption capture, leave the player alone, and check its row on the Canvas
-  Modules page. Only a Canvas completion indicator confirms credit.
-  *Why:* Module 3 redirected to “Thank you” while Canvas still showed
-  “Score at least 100.0” and kept Module 4 locked.
+- [L14] Bind the course after its launch redirects settle. An embedded video
+  can give way to a quiz inside the same course. Follow that transition and
+  record the quiz, Submit, and the score on the active results card. Rise
+  prefilled an inactive card with 0% before Module 3's quiz began.
+  When the course window redirects away
+  or its bound course frame detaches, stop capture and verify its Canvas row.
+  *Why:* Module 3's “Thank you!” page left Canvas pending. Its fresh launch
+  also changed documents on the way to a live lesson.
 
 ## Answering
 
+- [L02] When the transcript is silent on an in-video checkpoint, use the question's
+  framing and domain knowledge. Stop on a graded question only if it remains
+  ambiguous after that attempt. *Why:* “Every sexual assault has one thing in
+  common:” had one definitional answer. The previous rule paused the run until
+  the user supplied it.
 - [L03] Start caption capture on the first frame, before pressing play. Keep it
   active as each slide opens. *Why:* Module 2 lost opening narration. Seven
   in-video answers used domain knowledge, including the first checkpoint.

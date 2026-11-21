@@ -21,7 +21,7 @@ from playwright.sync_api import Error, sync_playwright
 from tools.browser.attach import attach
 from tools.browser.driver import Driver, Outcome, RunLog, public_url
 from tools.browser.launch import PORT, BrowserUnavailable, launch, wait_ready
-from tools.browser.player import PlayerEnded, PlayerWatch, player_identity, target_id
+from tools.browser.player import LessonChanged, PlayerEnded, PlayerWatch, player_identity, target_id, wait_for_player
 
 
 HERE = Path(__file__).resolve().parent
@@ -235,17 +235,28 @@ def run_loop(task, driver, transcript_path, capture, *, course_item=None):
             raise Handoff()
         return result
 
+    def drive_activity():
+        try:
+            return _run_loop(task, driver, transcript_path, capture, course_item=course_item)
+        except Error as error:
+            # Direct frame reads and driver actions use the same lifetime check.
+            driver.check_player(error)
+            raise
+
     course_item.remember_popup = remember_popup
     driver.assert_progress = progress
     try:
         with resources:
             if course_item.player:
                 start_sampler(course_item.player)
-            try:
-                return _run_loop(task, driver, transcript_path, capture, course_item=course_item)
-            except Handoff:
-                driver.check_player()
-                return Outcome("handoff", detail="stall")
+            while True:
+                try:
+                    return drive_activity()
+                except LessonChanged as transition:
+                    driver.log.write("lesson-changed", course_item.item["title"], "ok", 0, detail=str(transition))
+                except Handoff:
+                    driver.check_player()
+                    return Outcome("handoff", detail="stall")
     except PlayerEnded as end:
         return Outcome("item-ended", detail=str(end))
     finally:
@@ -290,6 +301,7 @@ def _run_loop(task, driver, transcript_path, capture, *, course_item=None):
             stalls += 1
             continue
         if course_item:
+            course_item.observe_quiz(driver, observed.value)
             steps = course_item.controls(driver)
             task = {**task, "actions": steps}
             menu = {(s["action"], s["target"], s.get("text", "")): s for s in steps}
@@ -327,7 +339,16 @@ def _run_loop(task, driver, transcript_path, capture, *, course_item=None):
                          tier="T1", basis=driver.basis, rule_used=decision.get("rule_used"))
         if action == "done":
             if course_item:
-                return Outcome("ok", detail="Worker finished. Canvas verification is pending.")
+                if proof := course_item.completion_proof(driver, observed.value):
+                    return Outcome("ok", detail=proof)
+                driver.log.write("done-unverified", course_item.item["title"], "miss", 0, tier="T1",
+                                 detail="Canvas row incomplete. Look for a required response, quiz or Submit.")
+                if not task.get("completion_reminder"):
+                    task = {**task, "completion_reminder": True, "goal": task["goal"] +
+                            " Canvas still shows this item pending. Continue the unfinished question or quiz."}
+                stalls += 1
+                next_capture = max(time.monotonic(), next_capture - 20)
+                continue
             if any(task["done_text"] in f["text"] for f in observed.value):
                 return Outcome("ok", detail="Completion text observed.")
             stalls += 1
@@ -354,6 +375,9 @@ def _run_loop(task, driver, transcript_path, capture, *, course_item=None):
         if urlsplit(driver.page.url)[:2] not in origins:
             return Outcome("aborted", detail="The page changed origin during the decision.")
         action_started = time.monotonic()
+        quiz_submit = course_item and action == "click" and course_item.is_quiz_submit(step)
+        if quiz_submit:
+            course_item.record_submit(driver, dispatched=False)
         if step.get("opens_popup"):
             with driver.page.expect_popup(timeout=5000) as opened:
                 result = dispatch(driver, action, step)
@@ -363,11 +387,16 @@ def _run_loop(task, driver, transcript_path, capture, *, course_item=None):
                     driver.page.wait_for_url(re.compile(r"^https?://"), timeout=15000)
                 driver.page.wait_for_load_state("domcontentloaded", timeout=15000)
                 if course_item:
+                    wait_for_player(driver.page)
                     course_item.remember_popup(driver.page)
                     origins.add(urlsplit(driver.page.url)[:2])
         else:
             result = dispatch(driver, action, step)
+        if quiz_submit and result.ok:
+            course_item.record_submit(driver, dispatched=True)
         if step.get("is_answer") and result.ok:
+            if course_item:
+                course_item.answered(step)
             driver.log.write("answer", target, "domain" if driver.basis == "domain" else "ok",
                              (time.monotonic() - action_started) * 1000, tier="T1", basis=driver.basis)
         if result.result == "aborted":
@@ -381,7 +410,9 @@ def _run_loop(task, driver, transcript_path, capture, *, course_item=None):
         stalls = 0 if result.ok else stalls + 1
         same_frame = frame if result.ok else None
         driver.settle()
-        driver.read()
+        after = driver.read()
+        if course_item and after.ok:
+            course_item.observe_quiz(driver, after.value)
         next_capture = max(time.monotonic(), next_capture - 20)
     return Outcome("stall", detail="Three consecutive stalls.")
 

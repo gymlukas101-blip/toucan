@@ -25,7 +25,7 @@ class EndOfItemTests(unittest.TestCase):
         self.path = self.folder / "queue.json"
         self.log = RunLog(self.folder / "run.jsonl")
         self.dom = Mock(log=self.log, run_dir=self.folder)
-        self.page = Mock(url="https://player.test/course?item=3")
+        self.page = Mock(url="https://player.test/course?item=3", frames=[])
         self.page.is_closed.return_value = False
         self.item = dict(key="42:3", title="Module 3", requirement="min_score", status="running", note="",
                          url="https://canvas.wisc.edu/courses/42/modules/items/3", player="target",

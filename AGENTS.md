@@ -47,6 +47,9 @@ When an active lesson drives a decision, record its ID once on that decision
 as `"rule_used":"L14"` (using the applicable ID). Omit the field otherwise.
 Use `item-ended` for the end of a player session and check the Canvas Modules
 row before marking the item done.
+For scored modules, log the completion quiz, Submit click, and posted score as
+separate observations. If an exit screen appears first, record the last
+observed slide and verify the exact item on Canvas.
 
 Example record
 
@@ -131,9 +134,10 @@ old line to memory/superseded.md and exclude it from future recall.
 
 Read LESSONS.md before each run. After every run, run tools/collect_lessons.py
 on that run's run.jsonl, compare candidates with report.md, and append or fix
-a rule in LESSONS.md. Keep at most 12 active rules. After editing, run
+a rule in LESSONS.md. Keep at most 15 active rules. After editing, run
 `py -3 tools/collect_lessons.py <run.jsonl> --prune` to delete excess rules
 by recorded use across project and local Toucan run logs. Pass
 `--history <directory>` for runs stored elsewhere. Older logs without rule IDs
-contribute zero recorded uses. Keep IDs stable across edits and retirements.
+contribute no usage evidence. Resolve ties at the cutoff from run evidence.
+Keep IDs stable across edits and retirements.
 Update the Metrics table in STATE.md from the run's action log.

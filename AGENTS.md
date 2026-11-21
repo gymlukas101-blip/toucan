@@ -14,8 +14,26 @@ Applies to every session under the project root.
 ## Layout
 - notes.md       rolling notes, appended as you go
 - transcript.md  verbatim caption text, `[MM:SS] text`, appended as it plays
-- run.log        one line per action: time, action, observed result
+- run.jsonl      one JSON object per action (see below)
 - report.md      final write-up
+
+## Run log format
+
+run.jsonl, one object per line, append-only:
+
+```text
+{"t":"<ISO8601>","action":"<verb>","target":"<what>","result":"<ok|miss|stall|ambiguous|aborted|domain|escalate>","tier":"<T0|T1|T2>","basis":"<MM:SS|domain>","ms":<int>}
+```
+
+result carries the event word the digest reads. Use "domain" on any
+domain-sourced answer. Record each action's elapsed milliseconds in ms.
+For a retake, use the action "retake" and record its result.
+
+Example record
+
+```json
+{"t":"2000-01-01T00:00:00Z","action":"answer","target":"example checkpoint","result":"domain","tier":"T1","basis":"domain","ms":250}
+```
 
 ## Rules
 1. Prefer structured control — extension, DOM, MCP — over clicking pixels.
@@ -25,7 +43,8 @@ Applies to every session under the project root.
 3. Once a SCORM module loads, never close, reload, or navigate away from it.
    The launch URL is signed and progress is server-tracked.
 4. Never click "EXIT COURSE", browser Back, or any start-over control.
-5. Append to files continuously. Never batch writes to the end of a run.
+5. Append to files continuously. Never batch writes to the end of a run. Log
+   every action to run.jsonl in the format above.
 6. Never type a password. A NetID or Duo prompt means stop and hand off.
 7. Never block waiting for a human. Decide and keep moving. Answer in-video
    checkpoints and graded questions alike from transcript.md when it supports
